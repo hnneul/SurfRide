@@ -75,115 +75,179 @@ export class UIManager {
     const { ctx, game } = this;
     const cx = LOGICAL_WIDTH / 2;
 
-    // 배경
-    ctx.fillStyle = '#a8d4e8';
+    // 배경 — 밝은 회백색
+    ctx.fillStyle = '#f0f2f5';
     ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 
-    // 파도 실루엣 (하단)
-    this._renderWaveSilhouette();
+    // 상단 구분선
+    ctx.fillStyle = '#e2e6ea';
+    ctx.fillRect(0, 0, LOGICAL_WIDTH, 6);
 
-    // 게임 타이틀
-    ctx.font      = 'bold 130px sans-serif';
+    // 타이틀
+    ctx.font      = 'bold 110px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#1a3a5c';
-    ctx.fillText('서프라이드  SurfRide', cx, 230);
+    ctx.fillStyle = '#1a2744';
+    ctx.fillText('서프라이드', cx, 240);
 
-    // 한 줄 소개
-    ctx.font      = '38px sans-serif';
-    ctx.fillStyle = '#1a3a5c';
-    ctx.fillText('제주에서 태평양 끝까지, 파도를 타고 횡단하는 60초 서핑 어드벤처', cx, 308);
+    // 서브타이틀
+    ctx.font      = '34px sans-serif';
+    ctx.fillStyle = '#8a96a3';
+    ctx.fillText('파도를 넘어, 세계를 정복하라', cx, 300);
 
-    // 버튼
+    // 구분선
+    ctx.strokeStyle = '#dde2e8';
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - 300, 340); ctx.lineTo(cx + 300, 340);
+    ctx.stroke();
+
+    // 버튼 2개 (세로 스택, 중앙 정렬)
     const save      = game.storage.load();
     const hasPlayed = !!(save?.lastPlayedTime);
-
-    const btnW = 580, btnH = 90;
+    const btnW = 500, btnH = 76, gap = 16;
     const btnX = cx - btnW / 2;
-    const gap  = 18;
-    let   btnY = 400;
+    let   btnY = 374;
 
-    const startBtn = makeBtn('시작하기', btnX, btnY, btnW, btnH, () => this.game.startStage(0));
-    this._drawMainBtn(startBtn, 'primary');
-    this._buttons.push(startBtn);
+    const newBtn = makeBtn('새 게임 시작하기', btnX, btnY, btnW, btnH,
+      () => this.game.startStage(0));
+    this._drawMainBtn(newBtn, 'primary');
+    this._buttons.push(newBtn);
     btnY += btnH + gap;
 
-    const resumeBtn = makeBtn('이어하기', btnX, btnY, btnW, btnH, () => this._onResume());
+    const resumeBtn = makeBtn('이어하기', btnX, btnY, btnW, btnH,
+      () => this._onResume());
     this._drawMainBtn(resumeBtn, hasPlayed ? 'secondary' : 'disabled');
     if (hasPlayed) this._buttons.push(resumeBtn);
-    btnY += btnH + gap;
 
-    const ctrlBtn = makeBtn('조작법 보기', btnX, btnY, btnW, btnH, () => this._onControls());
-    this._drawMainBtn(ctrlBtn, 'secondary');
-    this._buttons.push(ctrlBtn);
-    btnY += btnH + gap;
+    // 최근 진행 상황 카드
+    const cardW = 760, cardH = 220;
+    const cardX = cx - cardW / 2, cardY = 580;
+    this._renderProgressCard(cardX, cardY, cardW, cardH, save);
 
-    const mapBtn = makeBtn('세계지도 보기', btnX, btnY, btnW, btnH,
+    // 하단 보조 버튼 2개 (가로)
+    const subW = 280, subH = 64, subGap = 20;
+    const subY = 850;
+
+    const mapBtn = makeBtn('세계지도 보기', cx - subW - subGap / 2, subY, subW, subH,
       () => this.game.changeState(GameState.WORLDMAP));
     this._drawMainBtn(mapBtn, 'secondary');
     this._buttons.push(mapBtn);
-  }
 
-  _renderWaveSilhouette() {
-    const { ctx } = this;
+    const ctrlBtn = makeBtn('조작법 보기', cx + subGap / 2, subY, subW, subH,
+      () => this._onControls());
+    this._drawMainBtn(ctrlBtn, 'secondary');
+    this._buttons.push(ctrlBtn);
 
-    // 뒷쪽 파도 레이어
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.beginPath();
-    ctx.moveTo(0, 900);
-    for (let x = 0; x <= LOGICAL_WIDTH; x += 8) {
-      const y = 900 + Math.sin((x / LOGICAL_WIDTH) * Math.PI * 5 + 1.2) * 55;
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(LOGICAL_WIDTH, LOGICAL_HEIGHT);
-    ctx.lineTo(0, LOGICAL_HEIGHT);
-    ctx.closePath();
-    ctx.fill();
-
-    // 앞쪽 파도 레이어 (흰색)
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(0, 950);
-    for (let x = 0; x <= LOGICAL_WIDTH; x += 8) {
-      const y = 950 + Math.sin((x / LOGICAL_WIDTH) * Math.PI * 6) * 42;
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(LOGICAL_WIDTH, LOGICAL_HEIGHT);
-    ctx.lineTo(0, LOGICAL_HEIGHT);
-    ctx.closePath();
-    ctx.fill();
+    // 설정 텍스트 링크
+    ctx.fillStyle = '#aab4be';
+    ctx.font      = '28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('설정', cx, 970);
   }
 
   _drawMainBtn(btn, variant = 'primary') {
     const { ctx } = this;
 
-    if (variant === 'primary') {
-      ctx.fillStyle   = '#2d6a4f';
-      ctx.strokeStyle = '#2d6a4f';
-    } else if (variant === 'secondary') {
-      ctx.fillStyle   = 'rgba(0,0,0,0)';
-      ctx.strokeStyle = '#1a3a5c';
-    } else {
-      ctx.fillStyle   = 'rgba(0,0,0,0)';
-      ctx.strokeStyle = 'rgba(26,58,92,0.3)';
+    switch (variant) {
+      case 'primary':
+        ctx.fillStyle   = '#1a2744';
+        ctx.strokeStyle = '#1a2744';
+        break;
+      case 'secondary':
+        ctx.fillStyle   = 'rgba(0,0,0,0)';
+        ctx.strokeStyle = '#1a2744';
+        break;
+      default: // disabled
+        ctx.fillStyle   = 'rgba(0,0,0,0)';
+        ctx.strokeStyle = '#c8cdd4';
+        break;
     }
 
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(btn.x, btn.y, btn.w, btn.h, 12);
+    ctx.roundRect(btn.x, btn.y, btn.w, btn.h, 10);
     ctx.fill();
     ctx.stroke();
 
-    if (variant === 'primary') {
-      ctx.fillStyle = '#ffffff';
-    } else if (variant === 'secondary') {
-      ctx.fillStyle = '#1a3a5c';
-    } else {
-      ctx.fillStyle = 'rgba(26,58,92,0.3)';
+    ctx.fillStyle = variant === 'primary' ? '#ffffff'
+                  : variant === 'secondary' ? '#1a2744'
+                  : '#c8cdd4';
+    ctx.font      = 'bold 30px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2 + 11);
+  }
+
+  _renderProgressCard(x, y, w, h, save) {
+    const { ctx, game } = this;
+
+    // 카드 그림자
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.beginPath();
+    ctx.roundRect(x + 3, y + 5, w, h, 16);
+    ctx.fill();
+
+    // 카드 본체
+    ctx.fillStyle   = '#ffffff';
+    ctx.strokeStyle = '#e2e6ea';
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 16);
+    ctx.fill();
+    ctx.stroke();
+
+    const hasPlayed = !!(save?.lastPlayedTime);
+
+    // 헤더
+    ctx.fillStyle = '#8a96a3';
+    ctx.font      = '26px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('최근 진행 상황', x + 36, y + 46);
+
+    if (!hasPlayed) {
+      ctx.fillStyle = '#c0c8d0';
+      ctx.font      = '30px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('아직 플레이 기록이 없습니다', x + w / 2, y + h / 2 + 14);
+      return;
     }
 
+    const stageIdx  = save?.currentStage ?? 0;
+    const stageData = STAGES[stageIdx];
+    const stages    = save?.unlockedStages ?? [];
+    const cleared   = stages.filter(s => s.cleared).length;
+    const totalStars = stages.reduce((acc, s) => acc + (s.stars ?? 0), 0);
+    const hi         = game.storage.getHighScore(stageData.id);
+
+    // 해역
+    ctx.fillStyle = '#1a2744';
     ctx.font      = 'bold 32px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2 + 12);
+    ctx.textAlign = 'left';
+    ctx.fillText(`${stageData.id}구역 — ${stageData.name}`, x + 36, y + 100);
+
+    // 구분선
+    ctx.strokeStyle = '#eef0f3';
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 36, y + 120); ctx.lineTo(x + w - 36, y + 120);
+    ctx.stroke();
+
+    // 3열 수치
+    const cols = [
+      { label: '클리어 스테이지', value: `${cleared} / ${STAGES.length}` },
+      { label: '획득 별',         value: `★ ${totalStars}개`            },
+      { label: '최고 기록',        value: hi > 0 ? `${hi.toLocaleString()}점` : '—' },
+    ];
+    const colW = w / cols.length;
+    cols.forEach((col, i) => {
+      const colX = x + colW * i + colW / 2;
+      ctx.fillStyle = '#8a96a3';
+      ctx.font      = '23px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(col.label, colX, y + 158);
+      ctx.fillStyle = '#1a2744';
+      ctx.font      = 'bold 32px sans-serif';
+      ctx.fillText(col.value, colX, y + 198);
+    });
   }
 
   // ─── 세계지도 화면 ─────────────────────────────────────────────────────────
