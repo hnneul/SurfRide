@@ -16,14 +16,35 @@ export class Player {
     this.hitboxW = 60;
     this.hitboxH = 80;
 
-    // Visual: blue rectangle placeholder
-    this.visual = scene.add.rectangle(0, 0, this.hitboxW, this.hitboxH, 0x42a5f5)
-      .setStrokeStyle(2, 0xffffff)
-      .setDepth(2);
+    this.shadow = scene.add.ellipse(0, 0, 82, 18, 0x06182c, 0.34).setDepth(1.7);
+
+    this.visual = scene.add.container(0, 0).setDepth(2);
+    this.board = scene.add.ellipse(0, 26, 86, 22, 0xfff2b2)
+      .setStrokeStyle(3, 0x1e88e5);
+    this.boardNose = scene.add.triangle(36, 26, 0, -11, 20, 0, 0, 11, 0xff7043);
+    this.backLeg = scene.add.line(-12, 14, 0, 0, -24, 18, 0x242b3a).setLineWidth(8);
+    this.frontLeg = scene.add.line(16, 13, 0, 0, 24, 16, 0x242b3a).setLineWidth(8);
+    this.body = scene.add.ellipse(0, -8, 30, 42, 0xffb74d)
+      .setStrokeStyle(2, 0x6d3c16);
+    this.chest = scene.add.ellipse(2, -8, 18, 28, 0x26c6da, 0.92);
+    this.backArm = scene.add.line(-12, -12, 0, 0, -32, -25, 0x8d5524).setLineWidth(7);
+    this.frontArm = scene.add.line(14, -14, 0, 0, 35, -3, 0x8d5524).setLineWidth(7);
+    this.head = scene.add.circle(0, -42, 14, 0xd08b5b)
+      .setStrokeStyle(2, 0x5c3218);
+    this.hair = scene.add.arc(-4, -49, 12, 200, 35, false, 0x2d1a12)
+      .setStrokeStyle(2, 0x2d1a12);
+    this.eye = scene.add.circle(5, -43, 2.2, 0x151515);
+
+    this.visual.add([
+      this.board, this.boardNose, this.backLeg, this.frontLeg,
+      this.backArm, this.body, this.chest, this.frontArm,
+      this.head, this.hair, this.eye,
+    ]);
 
     this.laneLabel = scene.add.text(0, 0, 'MID', {
-      fontSize: '18px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
-    }).setOrigin(0.5, 1).setDepth(2);
+      fontSize: '16px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
+      backgroundColor: 'rgba(0,0,0,0.35)', padding: { x: 7, y: 3 },
+    }).setOrigin(0.5, 1).setDepth(2.2);
 
     this.reset();
   }
@@ -40,6 +61,7 @@ export class Player {
     this._laneCooldown = 0;
 
     this.visual?.setPosition(this.x, this.y);
+    this.shadow?.setPosition(this.x, this.baseY + 34);
   }
 
   get hitbox() {
@@ -60,9 +82,17 @@ export class Player {
     this._clampX();
 
     this.visual.setPosition(this.x, this.y);
-    this.visual.setFillStyle(this.isGrounded ? 0x42a5f5 : 0x90caf9);
+    this.visual.rotation = Phaser.Math.Linear(
+      this.visual.rotation,
+      this.isGrounded ? this.velX * 0.00035 : this.velY * -0.00008,
+      0.22,
+    );
+    this.board.setFillStyle(this.isGrounded ? 0xfff2b2 : 0xffffff);
+    this.shadow.setPosition(this.x, this.baseY + 34);
+    this.shadow.setScale(this.isGrounded ? 1 : 0.72, this.isGrounded ? 1 : 0.8);
+    this.shadow.setAlpha(this.isGrounded ? 0.34 : 0.18);
     this.laneLabel.setText(['TOP', 'MID', 'BOT'][this.lane]);
-    this.laneLabel.setPosition(this.x, this.y - this.hitboxH / 2 - 6);
+    this.laneLabel.setPosition(this.x, this.y - this.hitboxH / 2 - 18);
   }
 
   _handleLaneInput(deltaMs, cursors) {
@@ -120,6 +150,7 @@ export class Player {
   }
 
   destroy() {
+    this.shadow.destroy();
     this.visual.destroy();
     this.laneLabel.destroy();
   }

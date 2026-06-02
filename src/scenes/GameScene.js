@@ -5,6 +5,97 @@ import { ScoreManager } from '../score.js';
 import { StorageManager } from '../storage.js';
 import { STAGES } from '../stages.js';
 
+const BACKGROUND_THEMES = Object.freeze({
+  jeju: {
+    sky:    [0x89d9ff, 0x46a9d6, 0x1e78b8],
+    sea:    [0x1e75bb, 0x0d4d86, 0x062945],
+    clouds: 0.85,
+    island: { color: 0x2f735e, alpha: 0.34, y: 0.37 },
+    waveTint: 0xa0d7ff,
+    sparkle: 0.55,
+  },
+  jeju_coast: {
+    sky:    [0xb6f0ff, 0x58c7dc, 0x1596b5],
+    sea:    [0x19a6b5, 0x05768c, 0x03475d],
+    clouds: 0.78,
+    island: { color: 0x2f8065, alpha: 0.42, y: 0.39 },
+    reef:   { color: 0x83d9c7, alpha: 0.16 },
+    waveTint: 0xd5fff8,
+    sparkle: 0.7,
+  },
+  south_jeju: {
+    sky:    [0x8fcdf8, 0x3e91d0, 0x1d5c9a],
+    sea:    [0x1669ae, 0x0a3c78, 0x041c3a],
+    clouds: 0.65,
+    island: { color: 0x214e69, alpha: 0.28, y: 0.35 },
+    swell:  1.25,
+    waveTint: 0xc6e7ff,
+    sparkle: 0.42,
+  },
+  east_china_sea: {
+    sky:    [0xc7e9f5, 0x80bfd1, 0x4f8cab],
+    sea:    [0x276f9f, 0x15527b, 0x092d4f],
+    clouds: 0.9,
+    mist:   { color: 0xffffff, alpha: 0.16 },
+    waveTint: 0xd7eef7,
+    sparkle: 0.36,
+  },
+  okinawa: {
+    sky:    [0x9beaff, 0x3fc9d3, 0x1395b0],
+    sea:    [0x12b9bb, 0x087b98, 0x043f63],
+    clouds: 0.72,
+    reef:   { color: 0xffdd8a, alpha: 0.18 },
+    waveTint: 0xe3fff4,
+    sparkle: 0.78,
+  },
+  philippines: {
+    sky:    [0xb7d3e8, 0x6d94b3, 0x3e5d83],
+    sea:    [0x245f8f, 0x123d68, 0x071f3b],
+    clouds: 0.5,
+    mist:   { color: 0xdde8f0, alpha: 0.22 },
+    swell:  1.35,
+    waveTint: 0xc4d8ea,
+    sparkle: 0.24,
+  },
+  pacific_night: {
+    sky:    [0x182c5c, 0x0c1d42, 0x030b20],
+    sea:    [0x0d2f62, 0x071d3f, 0x020814],
+    clouds: 0.28,
+    stars:  true,
+    swell:  1.15,
+    waveTint: 0x81b7ff,
+    sparkle: 0.8,
+  },
+  volcanic: {
+    sky:    [0x5f6f86, 0x354b62, 0x231f2b],
+    sea:    [0x234f6e, 0x183246, 0x0b1724],
+    clouds: 0.35,
+    volcanicGlow: true,
+    swell:  1.28,
+    waveTint: 0xffa866,
+    sparkle: 0.28,
+  },
+  storm: {
+    sky:    [0x657689, 0x39485d, 0x151d2e],
+    sea:    [0x1c4966, 0x102b43, 0x06111f],
+    clouds: 0.32,
+    storm:  true,
+    swell:  1.55,
+    waveTint: 0xb7c7d8,
+    sparkle: 0.12,
+  },
+  final: {
+    sky:    [0x3b4258, 0x191f33, 0x070914],
+    sea:    [0x132d52, 0x081a32, 0x020611],
+    clouds: 0.22,
+    storm:  true,
+    stars:  true,
+    swell:  1.75,
+    waveTint: 0xd4e5ff,
+    sparkle: 0.38,
+  },
+});
+
 export default class GameScene extends Phaser.Scene {
   constructor() { super({ key: 'GameScene' }); }
 
@@ -13,6 +104,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.stage = STAGES[this.stageIndex] ?? STAGES[0];
+    this.bgTheme = BACKGROUND_THEMES[this.stage.theme] ?? BACKGROUND_THEMES.jeju;
     this.stageTimer  = 0;
     this.worldOffset = 0;
     this._active     = true;
@@ -23,7 +116,7 @@ export default class GameScene extends Phaser.Scene {
     this.scoreManager    = new ScoreManager();
     this.player          = new Player(this);
     this.obstacleManager = new ObstacleManager(this);
-    this.obstacleManager.loadStage(STAGES[this.stageIndex]);
+    this.obstacleManager.loadStage(this.stage);
 
     this.cursors  = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
@@ -66,26 +159,34 @@ export default class GameScene extends Phaser.Scene {
     const W   = LOGICAL_WIDTH;
     const H   = LOGICAL_HEIGHT;
     const ox  = this.worldOffset;
+    const t   = this.bgTheme;
+    const swell = t.swell ?? 1;
 
     gfx.clear();
 
-    // Sky — 3-stop gradient approximated with 2 rects
-    gfx.fillGradientStyle(0x87ceeb, 0x87ceeb, 0x4a9fd4, 0x4a9fd4, 1);
+    // Sky and sea use the stage theme color stops.
+    gfx.fillGradientStyle(t.sky[0], t.sky[0], t.sky[1], t.sky[1], 1);
     gfx.fillRect(0, 0, W, H * 0.24);
-    gfx.fillGradientStyle(0x4a9fd4, 0x4a9fd4, 0x2575b5, 0x2575b5, 1);
+    gfx.fillGradientStyle(t.sky[1], t.sky[1], t.sky[2], t.sky[2], 1);
     gfx.fillRect(0, H * 0.24, W, H * 0.24);
 
-    // Sea — 3-stop gradient approximated with 2 rects
-    gfx.fillGradientStyle(0x1e6db5, 0x1e6db5, 0x0e3d72, 0x0e3d72, 1);
+    gfx.fillGradientStyle(t.sea[0], t.sea[0], t.sea[1], t.sea[1], 1);
     gfx.fillRect(0, H * 0.44, W, H * 0.28);
-    gfx.fillGradientStyle(0x0e3d72, 0x0e3d72, 0x071e38, 0x071e38, 1);
+    gfx.fillGradientStyle(t.sea[1], t.sea[1], t.sea[2], t.sea[2], 1);
     gfx.fillRect(0, H * 0.72, W, H * 0.28);
 
-    this._drawClouds(ox * 0.08);
-    this._drawWaveLayer(ox * 0.18, H * 0.40, 16, 0x64aaeb, 0.35);
-    this._drawWaveLayer(ox * 0.45, H * 0.53, 26, 0xa0d7ff, 0.20);
-    this._drawWaveLayer(ox * 0.75, H * 0.66, 38, 0xffffff, 0.13);
-    this._drawSparkles(ox);
+    if (t.stars) this._drawStars(ox);
+    this._drawClouds(ox * 0.08, t.clouds ?? 0.85);
+    if (t.island) this._drawDistantIslands(ox * 0.05, t.island);
+    if (t.mist) this._drawSeaMist(ox * 0.12, t.mist);
+    if (t.reef) this._drawReefGlints(ox * 0.5, t.reef);
+    if (t.volcanicGlow) this._drawVolcanicGlow(ox);
+    if (t.storm) this._drawStormStreaks(ox);
+
+    this._drawWaveLayer(ox * 0.18, H * 0.40, 16 * swell, t.waveTint, 0.26);
+    this._drawWaveLayer(ox * 0.45, H * 0.53, 26 * swell, t.waveTint, 0.18);
+    this._drawWaveLayer(ox * 0.75, H * 0.66, 38 * swell, 0xffffff, 0.12);
+    this._drawSparkles(ox, t.sparkle ?? 0.55);
     this._drawLaneGuides(ox);
   }
 
@@ -116,7 +217,7 @@ export default class GameScene extends Phaser.Scene {
     gfx.fillPath();
   }
 
-  _drawClouds(offset) {
+  _drawClouds(offset, alpha) {
     const gfx  = this.bgGfx;
     const W    = LOGICAL_WIDTH;
     const TILE = 2400;
@@ -129,7 +230,7 @@ export default class GameScene extends Phaser.Scene {
       { rx: 2180, y: 55,  rw: 105, rh: 38 },
     ];
 
-    gfx.fillStyle(0xffffff, 0.85);
+    gfx.fillStyle(0xffffff, alpha);
     const scrolled = offset % TILE;
 
     for (const d of defs) {
@@ -143,14 +244,104 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  _drawSparkles(offset) {
+  _drawStars(offset) {
+    const gfx = this.bgGfx;
+    const W   = LOGICAL_WIDTH;
+    const H   = LOGICAL_HEIGHT;
+
+    for (let i = 0; i < 70; i++) {
+      const x = (i * 173 + Math.sin(i) * 41) % W;
+      const y = 24 + ((i * 67) % Math.round(H * 0.36));
+      const alpha = 0.25 + (Math.sin(offset * 0.01 + i * 1.9) + 1) * 0.25;
+      gfx.fillStyle(0xffffff, alpha);
+      gfx.fillCircle(x, y, i % 8 === 0 ? 2.4 : 1.4);
+    }
+  }
+
+  _drawDistantIslands(offset, island) {
+    const gfx = this.bgGfx;
+    const W   = LOGICAL_WIDTH;
+    const H   = LOGICAL_HEIGHT;
+    const y   = H * island.y;
+    const scrolled = offset % W;
+
+    gfx.fillStyle(island.color, island.alpha);
+    for (let tile = -1; tile <= 1; tile++) {
+      const x = tile * W - scrolled;
+      gfx.beginPath();
+      gfx.moveTo(x + 40, y + 34);
+      gfx.lineTo(x + 250, y - 36);
+      gfx.lineTo(x + 470, y + 20);
+      gfx.lineTo(x + 670, y - 18);
+      gfx.lineTo(x + 900, y + 40);
+      gfx.lineTo(x + 40, y + 40);
+      gfx.closePath();
+      gfx.fillPath();
+    }
+  }
+
+  _drawSeaMist(offset, mist) {
+    const gfx = this.bgGfx;
+    const W   = LOGICAL_WIDTH;
+    const H   = LOGICAL_HEIGHT;
+
+    gfx.fillStyle(mist.color, mist.alpha);
+    for (let i = 0; i < 8; i++) {
+      const x = ((i * 310 - offset) % (W + 260) + W + 260) % (W + 260) - 130;
+      const y = H * 0.43 + Math.sin(offset * 0.01 + i) * 18;
+      gfx.fillEllipse(x, y, 240, 28);
+    }
+  }
+
+  _drawReefGlints(offset, reef) {
+    const gfx = this.bgGfx;
+    const W   = LOGICAL_WIDTH;
+    const H   = LOGICAL_HEIGHT;
+
+    gfx.fillStyle(reef.color, reef.alpha);
+    for (let i = 0; i < 10; i++) {
+      const x = ((i * 230 - offset) % W + W) % W;
+      const y = H * 0.74 + Math.sin(i * 1.4) * 90;
+      gfx.fillEllipse(x, y, 150, 18);
+    }
+  }
+
+  _drawVolcanicGlow(offset) {
+    const gfx = this.bgGfx;
+    const W   = LOGICAL_WIDTH;
+    const H   = LOGICAL_HEIGHT;
+    const pulse = (Math.sin(offset * 0.012) + 1) * 0.5;
+
+    gfx.fillStyle(0xff6b2f, 0.08 + pulse * 0.05);
+    gfx.fillCircle(W * 0.72, H * 0.36, 210);
+    gfx.fillStyle(0xffb15a, 0.08);
+    gfx.fillCircle(W * 0.72, H * 0.36, 95);
+  }
+
+  _drawStormStreaks(offset) {
+    const gfx = this.bgGfx;
+    const W   = LOGICAL_WIDTH;
+    const H   = LOGICAL_HEIGHT;
+
+    gfx.lineStyle(2, 0xd9e8f4, 0.16);
+    for (let i = 0; i < 28; i++) {
+      const x = ((i * 91 - offset * 1.15) % (W + 140) + W + 140) % (W + 140) - 70;
+      const y = (i * 53 + offset * 0.08) % H;
+      gfx.beginPath();
+      gfx.moveTo(x, y);
+      gfx.lineTo(x - 34, y + 74);
+      gfx.strokePath();
+    }
+  }
+
+  _drawSparkles(offset, alphaScale) {
     const gfx = this.bgGfx;
     const W   = LOGICAL_WIDTH;
 
     for (let i = 0; i < 22; i++) {
       const x     = ((i * 97 + offset * 0.85) % W + W) % W;
       const y     = LANE_Y[Lane.TOP] + Math.sin(i * 2.1) * 200;
-      const alpha = (Math.sin(offset * 0.04 + i * 1.7) + 1) / 2 * 0.55;
+      const alpha = (Math.sin(offset * 0.04 + i * 1.7) + 1) / 2 * alphaScale;
       const r     = 1.5 + Math.sin(i * 0.9) * 1;
       gfx.fillStyle(0xffffff, alpha);
       gfx.fillCircle(x, y, r);
