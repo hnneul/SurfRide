@@ -1,3 +1,5 @@
+import Phaser from 'phaser';
+import '../style.css';
 import { LOGICAL_WIDTH, LOGICAL_HEIGHT } from './constants.js';
 import BootScene      from './scenes/BootScene.js';
 import MainMenuScene  from './scenes/MainMenuScene.js';

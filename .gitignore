@@ -2,3 +2,6 @@
 서프라이드 웹 미니게임_기능명세서.md
 .claude/
 .codex/
+node_modules/
+dist/
+team/

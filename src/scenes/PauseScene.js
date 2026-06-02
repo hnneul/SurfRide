@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import { LOGICAL_WIDTH, LOGICAL_HEIGHT } from '../constants.js';
 
 export default class PauseScene extends Phaser.Scene {

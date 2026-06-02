@@ -1,5 +1,7 @@
-import { Lane, LANE_Y } from './constants.js';
-import { LOGICAL_WIDTH } from './constants.js';
+import {
+  eventRideY, rideYToFrac, ERUPT_X, TARGET_RATIO,
+  ERUPT_RISE_MS, ERUPT_ACTIVE_MS, ERUPT_SINK_MS, GRAZE_MARGIN,
+} from './constants.js';
 
 export const ObstacleType = Object.freeze({
   FLYING_FISH: 'FLYING_FISH',
@@ -20,22 +22,23 @@ export const SignalType = Object.freeze({
 });
 
 export const OBSTACLE_META = Object.freeze({
-  [ObstacleType.FLYING_FISH]: { signalType: SignalType.SPLASH,   hitboxW:  80, hitboxH:  40 },
-  [ObstacleType.SHARK]:       { signalType: SignalType.FIN,      hitboxW: 100, hitboxH:  60 },
-  [ObstacleType.WHALE]:       { signalType: SignalType.SHADOW,   hitboxW: 200, hitboxH: 100 },
-  [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     hitboxW:  70, hitboxH:  70 },
-  [ObstacleType.OCTOPUS]:     { signalType: SignalType.TENTACLE, hitboxW: 120, hitboxH:  80 },
-  [ObstacleType.LIGHTNING]:   { signalType: SignalType.FLASH,    hitboxW:  40, hitboxH: 300 },
+  [ObstacleType.FLYING_FISH]: { signalType: SignalType.SPLASH,   name: '날치',   signalName: '물보라', hitboxW:  80, hitboxH:  40 },
+  [ObstacleType.SHARK]:       { signalType: SignalType.FIN,      name: '상어',   signalName: '등지느러미', hitboxW: 100, hitboxH:  60 },
+  [ObstacleType.WHALE]:       { signalType: SignalType.SHADOW,   name: '고래',   signalName: '바닷속 그림자', hitboxW: 200, hitboxH: 100 },
+  [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     name: '해파리', signalName: '빛나는 점', hitboxW:  70, hitboxH:  70 },
+  [ObstacleType.OCTOPUS]:     { signalType: SignalType.TENTACLE, name: '문어',   signalName: '다리 그림자', hitboxW: 120, hitboxH:  80 },
+  [ObstacleType.LIGHTNING]:   { signalType: SignalType.FLASH,    name: '번개',   signalName: '섬광', hitboxW:  40, hitboxH: 300 },
 });
 
-// ─── SignalInstance ───────────────────────────────────────────────────────────
+// ─── SignalInstance (예고 신호 — 6종 고유 비주얼) ─────────────────────────────
 class SignalInstance {
   constructor(event, spawnX, scene) {
     this.event    = event;
     this.type     = event.signalType ?? OBSTACLE_META[event.obstacleType].signalType;
     this.x        = spawnX;
-    this.y        = LANE_Y[event.lane];
+    this.y        = eventRideY(event);
     this.duration = event.telegraphMs;
+    this.targeted = !!event.targeted;
     this.elapsed  = 0;
     this.done     = false;
     this.gfx      = scene.add.graphics().setDepth(1);
@@ -52,28 +55,97 @@ class SignalInstance {
   _redraw() {
     const p   = this.progress;
     const gfx = this.gfx;
+    const x   = this.x;
+    const y   = this.y;
     gfx.clear();
 
-    if (this.type === SignalType.SPLASH) {
-      const radius = 16 + p * 36;
-      const alpha  = 1 - p * 0.6;
-      gfx.lineStyle(4, 0xffffff, alpha);
-      gfx.strokeCircle(this.x, this.y, radius);
-      gfx.fillStyle(0xffffff, alpha);
-      gfx.fillCircle(this.x, this.y, 6);
+    switch (this.type) {
+      case SignalType.SPLASH: {        // 날치 — 물 튀는 확장 링
+        const r = 16 + p * 38;
+        gfx.lineStyle(4, 0xffffff, 1 - p * 0.6);
+        gfx.strokeCircle(x, y, r);
+        gfx.fillStyle(0xbfe7ff, 1 - p * 0.5);
+        gfx.fillCircle(x, y - p * 24, 6);
+        gfx.fillCircle(x + 14, y - p * 14, 4);
+        gfx.fillCircle(x - 12, y - p * 18, 4);
+        break;
+      }
+      case SignalType.FIN: {           // 상어 — 등지느러미 + 항적선
+        const a = 1 - p * 0.4;
+        gfx.fillStyle(0x12324f, a);
+        gfx.fillTriangle(x, y - 34, x - 22, y + 14, x + 22, y + 14);
+        gfx.lineStyle(3, 0xffffff, a * 0.6);
+        gfx.beginPath();
+        gfx.moveTo(x + 22, y + 12);
+        gfx.lineTo(x + 70 + p * 40, y + 12);
+        gfx.strokePath();
+        break;
+      }
+      case SignalType.SHADOW: {        // 고래 — 떠오르는 거대한 어두운 그림자
+        const w = 120 + p * 130;
+        const h = 50 + p * 60;
+        gfx.fillStyle(0x041f3a, 0.25 + p * 0.45);
+        gfx.fillEllipse(x, y + (1 - p) * 40, w, h);
+        gfx.fillStyle(0x0a3a63, 0.3);
+        gfx.fillEllipse(x, y + (1 - p) * 40, w * 0.6, h * 0.55);
+        break;
+      }
+      case SignalType.GLOW: {          // 해파리 — 맥동하는 발광 원
+        const pulse = (Math.sin(this.elapsed * 0.018) + 1) / 2;
+        gfx.fillStyle(0x7af7e0, 0.10 + pulse * 0.18);
+        gfx.fillCircle(x, y, 30 + pulse * 16 + p * 14);
+        gfx.fillStyle(0xd4fff6, 0.5 + pulse * 0.4);
+        gfx.fillCircle(x, y, 8 + pulse * 4);
+        break;
+      }
+      case SignalType.TENTACLE: {      // 문어 — 솟아오르는 구불구불한 다리
+        const a = 0.35 + p * 0.5;
+        gfx.lineStyle(7, 0x6a2db5, a);
+        for (let t = -1; t <= 1; t++) {
+          const baseX = x + t * 26;
+          gfx.beginPath();
+          gfx.moveTo(baseX, y + 50);
+          for (let s = 0; s <= 1.01; s += 0.12) {
+            const ty = y + 50 - s * (40 + p * 50);
+            const tx = baseX + Math.sin(s * 6 + this.elapsed * 0.012 + t) * 14;
+            gfx.lineTo(tx, ty);
+          }
+          gfx.strokePath();
+        }
+        break;
+      }
+      case SignalType.FLASH: {         // 번개 — 섬광 + 경고 번개 윤곽
+        const blink = (Math.sin(this.elapsed * 0.045) + 1) / 2;
+        gfx.fillStyle(0xfff7a0, (0.08 + blink * 0.22) * (0.4 + p * 0.6));
+        gfx.fillRect(x - 26, y - 150, 52, 300);
+        gfx.lineStyle(4, 0xfff04d, 0.5 + blink * 0.5);
+        gfx.beginPath();
+        gfx.moveTo(x, y - 150);
+        gfx.lineTo(x - 16, y - 40);
+        gfx.lineTo(x + 8, y - 40);
+        gfx.lineTo(x - 14, y + 90);
+        gfx.strokePath();
+        break;
+      }
+      default: {
+        gfx.fillStyle(0xffd700, 1 - p * 0.5);
+        gfx.fillRect(x - 20, y - 20, 40, 40);
+      }
+    }
 
-    } else if (this.type === SignalType.FIN) {
-      const alpha = 1 - p * 0.5;
-      gfx.fillStyle(0x1e466e, alpha);
-      gfx.fillTriangle(
-        this.x,      this.y - 32,
-        this.x - 20, this.y + 12,
-        this.x + 20, this.y + 12,
-      );
-
-    } else {
-      gfx.fillStyle(0xffd700, 1 - p * 0.5);
-      gfx.fillRect(this.x - 20, this.y - 20, 40, 40);
+    // 타겟 분출: '너를 노린다' 조준 레티클 (빨강 점멸 링 + 십자선)
+    if (this.targeted) {
+      const blink = (Math.sin(this.elapsed * 0.03) + 1) / 2;
+      const r     = 30 + (1 - p) * 26;           // 좁혀지는 조준원
+      gfx.lineStyle(3, 0xff3b30, 0.55 + blink * 0.45);
+      gfx.strokeCircle(x, y, r);
+      gfx.lineStyle(2, 0xff6b5e, 0.5 + blink * 0.4);
+      gfx.beginPath();
+      gfx.moveTo(x - r - 8, y); gfx.lineTo(x - r + 10, y);
+      gfx.moveTo(x + r - 10, y); gfx.lineTo(x + r + 8, y);
+      gfx.moveTo(x, y - r - 8); gfx.lineTo(x, y - r + 10);
+      gfx.moveTo(x, y + r - 10); gfx.lineTo(x, y + r + 8);
+      gfx.strokePath();
     }
   }
 
@@ -81,24 +153,54 @@ class SignalInstance {
 }
 
 // ─── ObstacleInstance ────────────────────────────────────────────────────────
+const OBSTACLE_COLOR = {
+  [ObstacleType.FLYING_FISH]: 0xff8a3d,
+  [ObstacleType.SHARK]:       0x4a5a6a,
+  [ObstacleType.WHALE]:       0x123a5e,
+  [ObstacleType.JELLYFISH]:   0xc77dff,
+  [ObstacleType.OCTOPUS]:     0x7a2db5,
+  [ObstacleType.LIGHTNING]:   0xffe14d,
+};
+
+// 분출 단계 머신: RISE(솟구침) → ACTIVE(노출) → SINK(가라앉음) → done.
+// ERUPT_X 열에서 제자리 분출(x 고정).
 class ObstacleInstance {
   constructor(event, spawnX, scene) {
-    this.scene  = scene;
-    this.type   = event.obstacleType;
-    this.lane   = event.lane;
-    this.x      = spawnX;
-    this.y      = LANE_Y[event.lane];
-    this.active = true;
-    this.passed = false;
-    this.ageMs  = 0;
+    this.scene   = scene;
+    this.type    = event.obstacleType;
+    this.targetY = eventRideY(event);
+    this.x       = spawnX;
+    this.y       = this.targetY;
+    this.active  = true;
+
+    this.phase   = 'RISE';
+    this.phaseT  = 0;
+    this.ageMs   = 0;
+    this.reveal  = 0;          // 0(숨음)~1(완전 노출)
+
+    // 판정/스코어 상태
+    this.grazed        = false;   // 그레이즈(아슬아슬) 진입 여부
+    this.jumpedOver    = false;   // 점프로 넘었는지
+    this.resolved      = false;   // 안전 통과 처리 완료
+    this.hitByPlayer   = false;
 
     const meta   = OBSTACLE_META[this.type];
     this.hitboxW = meta.hitboxW;
     this.hitboxH = meta.hitboxH;
+    this.fromAbove = this.type === ObstacleType.LIGHTNING;  // 번개는 위→아래
     this.parts   = {};
 
-    this.visual = scene.add.container(this.x, this.y).setDepth(1);
+    // 분출 비주얼: 부위별로 조립한 디테일 아트(컨테이너). 분출 단계에 따라 스케일/알파 적용.
+    this.visual = scene.add.container(this.x, this.y).setDepth(2);
     this._buildVisual();
+  }
+
+  // 충분히 솟은 동안만 충돌 유효(완전히 가라앉기 직전 제외)
+  get collidable() {
+    if (!this.active) return false;
+    if (this.phase === 'RISE') return this.reveal > 0.55;
+    if (this.phase === 'SINK') return this.reveal > 0.45;
+    return this.phase === 'ACTIVE';
   }
 
   get hitbox() {
@@ -110,16 +212,21 @@ class ObstacleInstance {
     };
   }
 
-  update(deltaMs, scrollSpeed) {
-    this.ageMs += deltaMs;
-    this.x -= scrollSpeed * (deltaMs / 1000);
-    if (this.x < -200) this.active = false;
-    this.visual.setPosition(this.x, this.y);
-    this._animateVisual();
+  get grazebox() {
+    return {
+      x: this.x - this.hitboxW / 2 - GRAZE_MARGIN,
+      y: this.y - this.hitboxH / 2 - GRAZE_MARGIN,
+      w: this.hitboxW + GRAZE_MARGIN * 2,
+      h: this.hitboxH + GRAZE_MARGIN * 2,
+    };
   }
 
-  destroy() {
-    this.visual.destroy();
+  update(deltaMs) {
+    this.phaseT += deltaMs;
+    this.ageMs  += deltaMs;
+    this._advancePhase();
+    this._applyVisual();
+    this._animateVisual();
   }
 
   _buildVisual() {
@@ -261,25 +368,56 @@ class ObstacleInstance {
       this.parts.glow.alpha = 0.1 + Math.random() * 0.16;
     }
   }
+
+  _advancePhase() {
+    if (this.phase === 'RISE') {
+      this.reveal = Math.min(1, this.phaseT / ERUPT_RISE_MS);
+      if (this.phaseT >= ERUPT_RISE_MS) { this.phase = 'ACTIVE'; this.phaseT = 0; this.reveal = 1; }
+    } else if (this.phase === 'ACTIVE') {
+      this.reveal = 1;
+      if (this.phaseT >= ERUPT_ACTIVE_MS) { this.phase = 'SINK'; this.phaseT = 0; }
+    } else if (this.phase === 'SINK') {
+      this.reveal = Math.max(0, 1 - this.phaseT / ERUPT_SINK_MS);
+      if (this.phaseT >= ERUPT_SINK_MS) { this.active = false; }
+    }
+  }
+
+  _applyVisual() {
+    const r = this.reveal;
+    // 아래(또는 위)에서 솟아오르는 느낌: scaleY + y 오프셋으로 표현
+    const emerge = (1 - r) * this.hitboxH * 0.5;
+    this.y = this.targetY + (this.fromAbove ? -emerge : emerge);
+    this.visual.setPosition(this.x, this.y);
+    this.visual.setScale(0.8 + 0.2 * r, Math.max(0.12, r));
+    this.visual.setAlpha(this.phase === 'SINK' ? 0.35 + 0.65 * r : 1);
+  }
+
+  // 안전 통과(분출 종료) 시점 — 한 번만 resolved 처리
+  isResolved() {
+    return this.phase === 'SINK';
+  }
+
+  destroy() { this.visual.destroy(); }
 }
 
 // ─── ObstacleManager ─────────────────────────────────────────────────────────
 export class ObstacleManager {
   constructor(scene) {
-    this._scene           = scene;
-    this._events          = [];
-    this._eventIdx        = 0;
-    this.signals          = [];
-    this.obstacles        = [];
+    this._scene            = scene;
+    this._events           = [];
+    this._eventIdx         = 0;
+    this.signals           = [];
+    this.obstacles         = [];
     this._pendingObstacles = [];
-    this.scrollSpeed      = 600;
-    this._signalX         = LOGICAL_WIDTH - 240;
-    this._obstacleSpawnX  = LOGICAL_WIDTH + 100;
-    this._stageDuration   = 60_000;
+    this._resolvedQueue    = [];
+    this.scrollSpeed       = 600;          // 배경 패럴랙스 속도(분출엔 미사용)
+    // 신호·분출 모두 서퍼 열(ERUPT_X)에서 발생.
+    this._signalX          = ERUPT_X;
+    this._obstacleSpawnX   = ERUPT_X;
+    this._stageDuration    = 60_000;
   }
 
   loadStage(stageData) {
-    // Destroy any existing visuals
     for (const s of this.signals)   s.destroy();
     for (const o of this.obstacles) o.destroy();
 
@@ -288,26 +426,56 @@ export class ObstacleManager {
     this.signals           = [];
     this.obstacles         = [];
     this._pendingObstacles = [];
-    this.scrollSpeed       = stageData.scrollSpeed  ?? 600;
-    this._stageDuration    = stageData.duration     ?? 60_000;
+    this._resolvedQueue    = [];
+    this.scrollSpeed       = stageData.scrollSpeed ?? 600;
+    this._stageDuration    = stageData.duration    ?? 60_000;
   }
 
-  update(deltaMs, stageTimerMs) {
-    this._spawnFromScript(stageTimerMs);
+  update(deltaMs, stageTimerMs, player) {
+    this._spawnFromScript(stageTimerMs, player);
     this._spawnPending(stageTimerMs);
     for (const sig of this.signals)   sig.update(deltaMs);
-    for (const obs of this.obstacles) obs.update(deltaMs, this.scrollSpeed);
+    for (const obs of this.obstacles) {
+      obs.update(deltaMs);
+      if (player) this._trackPlayer(obs, player);
+    }
     this._cleanup();
   }
 
-  _spawnFromScript(stageTimerMs) {
+  // 그레이즈/점프 통과 감지 + 안전 통과 시점을 resolvedQueue에 적재
+  _trackPlayer(obs, player) {
+    if (obs.collidable) {
+      const hb = player.hitbox;
+      if (!this._aabb(hb, obs.hitbox) && this._aabb(hb, obs.grazebox)) obs.grazed = true;
+      const vNear = Math.abs(obs.targetY - player.baseY) < obs.hitboxH / 2 + 60;
+      if (!player.isGrounded && vNear) obs.jumpedOver = true;
+    }
+    if (!obs.resolved && !obs.hitByPlayer && obs.isResolved()) {
+      obs.resolved = true;
+      this._resolvedQueue.push(obs);
+    }
+  }
+
+  _aabb(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  _spawnFromScript(stageTimerMs, player) {
     while (
       this._eventIdx < this._events.length &&
       this._events[this._eventIdx].t <= stageTimerMs
     ) {
-      const raw          = this._events[this._eventIdx++];
-      const telegraphMs  = Math.max(500, raw.telegraphMs ?? 500);
-      const ev           = telegraphMs === raw.telegraphMs ? raw : { ...raw, telegraphMs };
+      const raw         = this._events[this._eventIdx++];
+      const telegraphMs = Math.max(500, raw.telegraphMs ?? 500);
+      let   ev          = telegraphMs === raw.telegraphMs ? raw : { ...raw, telegraphMs };
+
+      // 타겟 분출: 신호가 뜨는 '지금' 서퍼 높이를 찍어 그 자리로 분출시킨다.
+      // event.aimAtPlayer로 명시하거나, 일부(TARGET_RATIO)를 무작위로 겨냥.
+      const targeted = player && !ev.isFake &&
+        (ev.aimAtPlayer ?? (Math.random() < TARGET_RATIO));
+      if (targeted) {
+        ev = { ...ev, yFrac: rideYToFrac(player.baseY), targeted: true };
+      }
 
       this.signals.push(new SignalInstance(ev, this._signalX, this._scene));
 
@@ -321,7 +489,9 @@ export class ObstacleManager {
     for (let i = this._pendingObstacles.length - 1; i >= 0; i--) {
       const p = this._pendingObstacles[i];
       if (p.spawnAtMs <= stageTimerMs) {
-        this.obstacles.push(new ObstacleInstance(p.event, this._obstacleSpawnX, this._scene));
+        this.obstacles.push(
+          new ObstacleInstance(p.event, this._obstacleSpawnX, this._scene),
+        );
         this._pendingObstacles.splice(i, 1);
       }
     }
@@ -336,27 +506,17 @@ export class ObstacleManager {
 
   checkCollision(playerHitbox) {
     for (const obs of this.obstacles) {
-      if (obs.passed) continue;
-      const o = obs.hitbox;
-      const hit =
-        playerHitbox.x < o.x + o.w &&
-        playerHitbox.x + playerHitbox.w > o.x &&
-        playerHitbox.y < o.y + o.h &&
-        playerHitbox.y + playerHitbox.h > o.y;
-      if (hit) return obs;
+      if (!obs.collidable || obs.hitByPlayer) continue;
+      if (this._aabb(playerHitbox, obs.hitbox)) { obs.hitByPlayer = true; return obs; }
     }
     return null;
   }
 
-  getJustPassed(playerX) {
-    const passed = [];
-    for (const obs of this.obstacles) {
-      if (!obs.passed && obs.x + obs.hitboxW / 2 < playerX) {
-        obs.passed = true;
-        passed.push(obs);
-      }
-    }
-    return passed;
+  // 이번 프레임에 안전 통과로 확정된 장애물들(점수 처리용). 큐를 비운다.
+  collectResolved() {
+    const out = this._resolvedQueue;
+    this._resolvedQueue = [];
+    return out;
   }
 
   destroyAll() {

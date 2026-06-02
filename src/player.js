@@ -1,22 +1,26 @@
-import { LOGICAL_WIDTH, Lane, LANE_Y, LANE_MULTIPLIER } from './constants.js';
+import {
+  LOGICAL_WIDTH, RIDE_TOP_Y, RIDE_BOTTOM_Y, isDangerY, zoneMultiplierForY, BALANCE,
+} from './constants.js';
 
-// re-export for score.js / obstacle.js backwards compat
-export { Lane, LANE_Y, LANE_MULTIPLIER };
+// 스폰 데이터 호환을 위한 재수출
+export { Lane } from './constants.js';
 
-const JUMP_VELOCITY        = -900;
-const GRAVITY              = 2400;
-const MOVE_SPEED           = 320;
-const MOVE_RANGE_X         = LOGICAL_WIDTH * (1 / 3);
-const LANE_SWITCH_COOLDOWN = 150;
+const STEER_ACCEL = 2400;   // 수직 가속 (px/s²) — v3: 가동 폭 축소
+const STEER_MAX   = 420;    // 최대 수직 속도 (px/s) — v3: 정밀 이동 강제
+const JUMP_SPEED  = 1180;   // 점프 초기 상승 속도 (px/s)
+const GRAVITY     = 2900;   // 점프 중력 (px/s²)
 
 export class Player {
   constructor(scene) {
     this.scene = scene;
 
-    this.hitboxW = 60;
-    this.hitboxH = 80;
+    this.hitboxW = 58;
+    this.hitboxH = 88;
 
     this.shadow = scene.add.ellipse(0, 0, 82, 18, 0x06182c, 0.34).setDepth(1.7);
+
+    // 라이딩 물보라 (아래쪽일수록 강해짐) — 서퍼 아래 깔리도록 visual보다 낮은 depth
+    this.spray = scene.add.graphics().setDepth(1.85);
 
     this.visual = scene.add.container(0, 0).setDepth(2);
     this.board = scene.add.ellipse(0, 26, 86, 22, 0xfff2b2)
@@ -41,117 +45,149 @@ export class Player {
       this.head, this.hair, this.eye,
     ]);
 
-    this.laneLabel = scene.add.text(0, 0, 'MID', {
-      fontSize: '16px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
-      backgroundColor: 'rgba(0,0,0,0.35)', padding: { x: 7, y: 3 },
-    }).setOrigin(0.5, 1).setDepth(2.2);
-
     this.reset();
   }
 
   reset() {
-    this.lane      = Lane.MID;
-    this.x         = LOGICAL_WIDTH * 0.18;
-    this.y         = LANE_Y[Lane.MID];
-    this.baseY     = LANE_Y[Lane.MID];
-    this.velX      = 0;
-    this.velY      = 0;
+    this.x          = LOGICAL_WIDTH * 0.20;
+    this.baseY      = RIDE_TOP_Y + (RIDE_BOTTOM_Y - RIDE_TOP_Y) * 0.30;
+    this.y          = this.baseY;
+    this.vSteer     = 0;
+    this.jumpOffset = 0;   // 파도 면 위로 떠오른 높이 (>=0)
+    this.jumpVel    = 0;
     this.isJumping  = false;
     this.isGrounded = true;
-    this._laneCooldown = 0;
+
+    // 균형(밸런스): tilt ∈ [-1,+1], 0이 안정. 한계 초과 시 와이프아웃.
+    this.tilt       = 0;
+    this.wiped      = false;
+    this._driftSeed = Math.random() * Math.PI * 2;
 
     this.visual?.setPosition(this.x, this.y);
+    this.visual?.setRotation(0);
     this.shadow?.setPosition(this.x, this.baseY + 34);
   }
+
+  get inWarning() { return Math.abs(this.tilt) >= BALANCE.WARN_AT; }
 
   get hitbox() {
     return {
       x: this.x - this.hitboxW / 2,
-      y: this.y - this.hitboxH / 2,
+      y: (this.y - 12) - this.hitboxH / 2,
       w: this.hitboxW,
       h: this.hitboxH,
     };
   }
 
+  get inDanger()      { return isDangerY(this.baseY); }
+  get zoneMultiplier(){ return zoneMultiplierForY(this.baseY); }
+
   update(deltaMs, cursors, spaceKey) {
     const dt = deltaMs / 1000;
 
-    this._handleLaneInput(deltaMs, cursors);
+    this._handleSteer(dt, cursors);
+    this._handleBalance(dt, cursors);
     this._handleJump(spaceKey);
-    this._applyPhysics(dt, cursors);
-    this._clampX();
-
-    this.visual.setPosition(this.x, this.y);
-    this.visual.rotation = Phaser.Math.Linear(
-      this.visual.rotation,
-      this.isGrounded ? this.velX * 0.00035 : this.velY * -0.00008,
-      0.22,
-    );
-    this.board.setFillStyle(this.isGrounded ? 0xfff2b2 : 0xffffff);
-    this.shadow.setPosition(this.x, this.baseY + 34);
-    this.shadow.setScale(this.isGrounded ? 1 : 0.72, this.isGrounded ? 1 : 0.8);
-    this.shadow.setAlpha(this.isGrounded ? 0.34 : 0.18);
-    this.laneLabel.setText(['TOP', 'MID', 'BOT'][this.lane]);
-    this.laneLabel.setPosition(this.x, this.y - this.hitboxH / 2 - 18);
+    this._applyPhysics(dt);
+    this._render(deltaMs);
   }
 
-  _handleLaneInput(deltaMs, cursors) {
-    this._laneCooldown = Math.max(0, this._laneCooldown - deltaMs);
-    if (this._laneCooldown > 0) return;
-
-    if (cursors.up.isDown && this.lane > Lane.TOP) {
-      this.lane--;
-      this.baseY = LANE_Y[this.lane];
-      this._laneCooldown = LANE_SWITCH_COOLDOWN;
-    } else if (cursors.down.isDown && this.lane < Lane.BOT) {
-      this.lane++;
-      this.baseY = LANE_Y[this.lane];
-      this._laneCooldown = LANE_SWITCH_COOLDOWN;
+  // ←/→ 카운터-스티어로 균형 유지. 무입력 시 드리프트만 누적 → 와이프아웃.
+  _handleBalance(dt, cursors) {
+    if (!this.isGrounded) {
+      // 공중 = 균형 리셋 호흡: 드리프트 정지, tilt가 0쪽으로 완화
+      this.tilt -= this.tilt * Math.min(1, 3.0 * dt);
+      return;
     }
+
+    const span  = RIDE_BOTTOM_Y - RIDE_TOP_Y;
+    const depth = (this.baseY - RIDE_TOP_Y) / span;   // 0(마루)~1(거친 바다)
+    const t     = (this.scene?.stageTimer ?? 0);
+
+    // 깊을수록 강한 드리프트 + 파도 출렁임 외란
+    const driftMag = BALANCE.BASE_DRIFT + BALANCE.DEPTH_K * depth;
+    const wobble   = Math.sin(t * 0.004 + this._driftSeed) * BALANCE.WOBBLE_AMP;
+    const driftDir = Math.sin(t * 0.0011 + this._driftSeed) >= 0 ? 1 : -1;
+
+    this.tilt += (driftDir * driftMag + wobble) * dt;
+
+    // 보정 입력
+    if (cursors.left?.isDown)  this.tilt -= BALANCE.CORRECT_RATE * dt;
+    if (cursors.right?.isDown) this.tilt += BALANCE.CORRECT_RATE * dt;
+
+    this.tilt = Phaser_clamp(this.tilt, -1.25, 1.25);
+    if (Math.abs(this.tilt) >= BALANCE.WIPEOUT_AT) this.wiped = true;
+  }
+
+  _handleSteer(dt, cursors) {
+    if (cursors.up.isDown)        this.vSteer -= STEER_ACCEL * dt;
+    else if (cursors.down.isDown) this.vSteer += STEER_ACCEL * dt;
+    else                          this.vSteer -= this.vSteer * Math.min(1, 11 * dt);
+
+    this.vSteer = Phaser_clamp(this.vSteer, -STEER_MAX, STEER_MAX);
+    this.baseY += this.vSteer * dt;
+
+    if (this.baseY < RIDE_TOP_Y)    { this.baseY = RIDE_TOP_Y;    if (this.vSteer < 0) this.vSteer = 0; }
+    if (this.baseY > RIDE_BOTTOM_Y) { this.baseY = RIDE_BOTTOM_Y; if (this.vSteer > 0) this.vSteer = 0; }
   }
 
   _handleJump(spaceKey) {
     if (spaceKey.isDown && this.isGrounded) {
-      this.velY       = JUMP_VELOCITY;
+      this.jumpVel    = JUMP_SPEED;
       this.isJumping  = true;
       this.isGrounded = false;
     }
   }
 
-  _applyPhysics(dt, cursors) {
+  _applyPhysics(dt) {
     if (!this.isGrounded) {
-      this.velY += GRAVITY * dt;
-      this.y    += this.velY * dt;
-
-      if (cursors.left.isDown)        this.velX = -MOVE_SPEED;
-      else if (cursors.right.isDown)  this.velX =  MOVE_SPEED;
-      else                            this.velX = 0;
-
-      this.x += this.velX * dt;
-
-      if (this.y >= this.baseY) {
-        this.y          = this.baseY;
-        this.velY       = 0;
-        this.velX       = 0;
+      this.jumpVel    -= GRAVITY * dt;
+      this.jumpOffset += this.jumpVel * dt;
+      if (this.jumpOffset <= 0) {
+        this.jumpOffset = 0;
+        this.jumpVel    = 0;
         this.isJumping  = false;
         this.isGrounded = true;
       }
-    } else {
-      this.y += (this.baseY - this.y) * Math.min(1, 12 * dt);
-      if (cursors.left.isDown)  this.x -= MOVE_SPEED * dt;
-      if (cursors.right.isDown) this.x += MOVE_SPEED * dt;
     }
+    this.y = this.baseY - this.jumpOffset;
   }
 
-  _clampX() {
-    const minX = this.hitboxW / 2;
-    const maxX = minX + MOVE_RANGE_X;
-    this.x = Math.max(minX, Math.min(maxX, this.x));
+  _render(deltaMs) {
+    // 카빙 틸트: 수직 속도 + 균형(tilt) 합성, 점프 중엔 약간 들림
+    const carve = Phaser_clamp(this.vSteer / STEER_MAX, -1, 1) * 0.30;
+    const balance = this.tilt * 0.42;
+    const air   = this.isGrounded ? 0 : -0.12;
+    this.visual.setPosition(this.x, this.y);
+    this.visual.setRotation(carve + balance + air);
+    this.board.setFillStyle(this.isGrounded ? 0xfff2b2 : 0xffffff);
+
+    this.shadow.setPosition(this.x, this.baseY + 34);
+    this.shadow.setScale(this.isGrounded ? 1 : 0.72, this.isGrounded ? 1 : 0.8);
+    this.shadow.setAlpha(this.isGrounded ? 0.34 : 0.18);
+
+    // 물보라 — 아래쪽(위험 구간)일수록 강하게, 점프 중엔 약하게
+    const g = this.spray;
+    g.clear();
+    if (this.isGrounded) {
+      const intensity = 0.25 + 0.75 * ((this.baseY - RIDE_TOP_Y) / (RIDE_BOTTOM_Y - RIDE_TOP_Y));
+      const n = Math.round(4 + intensity * 6);
+      g.fillStyle(0xffffff, 0.5 * intensity + 0.2);
+      for (let i = 0; i < n; i++) {
+        const px = this.x - 40 - Math.random() * (50 + intensity * 80);
+        const py = this.y + 16 + (Math.random() - 0.5) * 18;
+        g.fillCircle(px, py, 2 + Math.random() * (2 + intensity * 3));
+      }
+    }
   }
 
   destroy() {
     this.shadow.destroy();
     this.visual.destroy();
-    this.laneLabel.destroy();
+    this.spray.destroy();
   }
+}
+
+function Phaser_clamp(v, lo, hi) {
+  return v < lo ? lo : v > hi ? hi : v;
 }
