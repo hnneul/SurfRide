@@ -1,0 +1,38 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0e1a;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+#game-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 두 캔버스를 같은 위치에 겹쳐서 배치 */
+#canvas-world,
+#canvas-ui {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  /* 실제 크기는 main.js에서 논리 해상도(1920×1080)에 맞게 동적 설정 */
+}
+
+/* UI 레이어는 항상 위에 */
+#canvas-ui {
+  pointer-events: none;
+  z-index: 10;
+}
