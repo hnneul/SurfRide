@@ -4,16 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SurfRide — 서프라이드</title>
-  <link rel="stylesheet" href="style.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+  </style>
 </head>
 <body>
-  <div id="game-container">
-    <!-- 게임 월드 레이어 -->
-    <canvas id="canvas-world"></canvas>
-    <!-- UI 레이어 (카메라 이동 영향 받지 않음) -->
-    <canvas id="canvas-ui"></canvas>
-  </div>
-
+  <div id="game-container"></div>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.88.0/dist/phaser.min.js"></script>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>
