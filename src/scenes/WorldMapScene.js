@@ -6,269 +6,500 @@ import { STAGES } from '../stages.js';
 const W = LOGICAL_WIDTH;
 const H = LOGICAL_HEIGHT;
 
+const PALETTE = Object.freeze({
+  ink: 0x07263e,
+  inkSoft: 0x536f83,
+  foam: 0xf3fbff,
+  sky: 0xbff0ff,
+  sea: 0x72cff2,
+  ocean: 0x2291c9,
+  deep: 0x075480,
+  coral: 0xff6f59,
+  coralDeep: 0xc93c58,
+  sun: 0xffd66b,
+  sand: 0xf4d58d,
+  route: 0xffffff,
+  locked: 0x6b7785,
+});
+
 const NODES = [
-  { id: 1,  x: 170,  y: 615 }, { id: 2,  x: 360,  y: 550 }, { id: 3,  x: 545,  y: 480 },
-  { id: 4,  x: 735,  y: 400 }, { id: 5,  x: 920,  y: 342 }, { id: 6,  x: 1105, y: 298 },
-  { id: 7,  x: 1285, y: 268 }, { id: 8,  x: 1458, y: 248 }, { id: 9,  x: 1628, y: 232 },
-  { id: 10, x: 1790, y: 218 },
+  { id: 1,  x: 250,  y: 610, island: 'jeju' },
+  { id: 2,  x: 435,  y: 542, island: 'coast' },
+  { id: 3,  x: 620,  y: 470, island: 'south' },
+  { id: 4,  x: 820,  y: 405, island: 'china' },
+  { id: 5,  x: 1012, y: 358, island: 'okinawa' },
+  { id: 6,  x: 1198, y: 335, island: 'philippines' },
+  { id: 7,  x: 1375, y: 350, island: 'night' },
+  { id: 8,  x: 1532, y: 425, island: 'volcanic' },
+  { id: 9,  x: 1652, y: 542, island: 'storm' },
+  { id: 10, x: 1760, y: 690, island: 'final' },
 ];
 
 const MAP_TEXTS = {
-  1: '첫 파도에 올라타세요',      2: '연안의 생물들을 조심하세요',
-  3: '큰 파도가 밀려옵니다',      4: '바람이 착지를 흔듭니다',
-  5: '암초를 피해 나아가세요',    6: '태풍이 다가옵니다',
-  7: '빛나는 신호만 믿으세요',    8: '이질적인 바다가 펼쳐집니다',
-  9: '파도와 번개가 동시에 몰아칩니다', 10: '모든 파도가 당신을 시험합니다',
+  1: '첫 파도에 올라타세요',
+  2: '연안의 생물 신호를 읽는 구간',
+  3: '큰 파도가 항로를 흔듭니다',
+  4: '바람과 가짜 신호가 시작됩니다',
+  5: '암초 지대를 빠르게 통과하세요',
+  6: '태풍 전야, 리듬이 빨라집니다',
+  7: '밤바다에서 번개 신호를 구분하세요',
+  8: '화산 해역의 낯선 흐름',
+  9: '폭풍과 번개가 동시에 몰아칩니다',
+  10: '모든 파도가 마지막 시험이 됩니다',
 };
+
+const TYPE_LABEL = Object.freeze({
+  FLYING_FISH: '날치',
+  JELLYFISH: '해파리',
+  SHARK: '상어',
+  WHALE: '고래',
+  OCTOPUS: '문어',
+  LIGHTNING: '번개',
+});
 
 export default class WorldMapScene extends Phaser.Scene {
   constructor() { super({ key: 'WorldMapScene' }); }
 
   create() {
-    this._storage = new StorageManager();
-    const save = this._storage.load() ?? {};
-    const unlocked  = save.unlockedStages ?? [{ id: 1, stars: 0, highScore: 0, cleared: false }];
-    const isCleared  = id => unlocked.some(s => s.id === id && s.cleared);
-    const isUnlocked = id => unlocked.some(s => s.id === id);
-    const getStars   = id => unlocked.find(s => s.id === id)?.stars ?? 0;
-    const clearedIds = unlocked.filter(s => s.cleared).map(s => s.id);
-    const maxCleared = clearedIds.length > 0 ? Math.max(...clearedIds) : 0;
-    const nextId     = maxCleared < 10 ? maxCleared + 1 : null;
-
-    // ── Background ──────────────────────────────────────────────────────────
-    const bg = this.add.graphics();
-    bg.fillGradientStyle(0xcdf0fa, 0xcdf0fa, 0x0097a7, 0x0097a7, 1).fillRect(0, 0, W, H * 0.65);
-    bg.fillGradientStyle(0x0097a7, 0x0097a7, 0x004d56, 0x004d56, 1).fillRect(0, H * 0.65, W, H * 0.35);
-
-    // ── Header ──────────────────────────────────────────────────────────────
-    this.add.text(W / 2, 66, '세계지도', {
-      fontSize: '54px', fontFamily: 'sans-serif', color: '#1a2744', fontStyle: 'bold',
-    }).setOrigin(0.5);
-    this.add.text(W / 2, 104, '제주에서 태평양 끝까지 — 신호를 읽고 파도를 넘는 항해', {
-      fontSize: '26px', fontFamily: 'sans-serif', color: '#004d56',
-    }).setOrigin(0.5);
-    this.add.graphics()
-      .lineStyle(1, 0x004d56, 0.25)
-      .beginPath().moveTo(100, 122).lineTo(W - 100, 122).strokePath();
-
-    // ── Route line ──────────────────────────────────────────────────────────
-    const routeGfx = this.add.graphics();
-    routeGfx.lineStyle(3, 0x1a2744, 0.45);
-    routeGfx.beginPath();
-    routeGfx.moveTo(NODES[0].x, NODES[0].y);
-    for (let i = 1; i < NODES.length; i++) routeGfx.lineTo(NODES[i].x, NODES[i].y);
-    routeGfx.strokePath();
-
-    // ── Nodes ───────────────────────────────────────────────────────────────
-    const R = 30;
-    for (const { id, x, y } of NODES) {
-      const cleared  = isCleared(id);
-      const unlocked = isUnlocked(id);
-      const isNext   = nextId !== null && id === nextId;
-
-      const nodeGfx = this.add.graphics();
-      if (cleared) {
-        nodeGfx.fillStyle(0x1a2744, 1).lineStyle(3, 0x29b6f6, 1);
-      } else if (isNext) {
-        nodeGfx.fillStyle(0xe1b612, 1).lineStyle(4, 0xffe441, 1);
-      } else if (unlocked) {
-        nodeGfx.fillStyle(0xffffff, 0.55).lineStyle(2, 0x1a2744, 0.45);
-      } else {
-        nodeGfx.fillStyle(0xffffff, 0.18).lineStyle(2, 0x1a2744, 0.25);
-      }
-      nodeGfx.fillCircle(x, y, R).strokeCircle(x, y, R);
-
-      // Number or lock
-      if (!unlocked && !isNext) {
-        this.add.text(x, y + 8, '🔒', { fontSize: '22px' }).setOrigin(0.5);
-      } else {
-        this.add.text(x, y + 8, String(id), {
-          fontSize: '22px', fontFamily: 'sans-serif', fontStyle: 'bold',
-          color: cleared ? '#ffffff' : isNext ? '#2a1800' : '#1a2744',
-        }).setOrigin(0.5);
-      }
-
-      // Stage name below node
-      const stage = STAGES[id - 1];
-      this.add.text(x, y + R + 22, stage.name, {
-        fontSize: isNext ? '21px' : '19px',
+    try {
+      this._createWorldMap();
+    } catch (error) {
+      console.error('WorldMapScene failed to render', error);
+      this.add.text(W / 2, H / 2, '세계지도를 불러오지 못했습니다', {
+        fontSize: '42px',
         fontFamily: 'sans-serif',
-        fontStyle: isNext ? 'bold' : 'normal',
-        color: cleared  ? '#1a2744'
-             : isNext   ? '#ffe566'
-             : unlocked ? 'rgba(26,39,68,0.85)'
-             : 'rgba(26,39,68,0.45)',
-      }).setOrigin(0.5, 0);
-
-      if (cleared) {
-        const s = getStars(id);
-        this.add.text(x, y + R + 44, '★'.repeat(s) + '☆'.repeat(3 - s), {
-          fontSize: '16px', fontFamily: 'sans-serif', color: '#f9a825',
-        }).setOrigin(0.5, 0);
-      }
-
-      // Clickable button for cleared/next nodes
-      if ((cleared || isNext) && !(nextId === null && !cleared)) {
-        this.add.zone(x, y, R * 2 + 20, R * 2 + 20)
-          .setInteractive({ useHandCursor: true })
-          .on('pointerdown', () => this.scene.start('GameScene', { stageIndex: id - 1 }));
-      }
-    }
-
-    // ── Surfer icon at current position ─────────────────────────────────────
-    const boardNode = NODES[(nextId ?? 10) - 1];
-    this.add.text(boardNode.x, boardNode.y - 46, '🏄', { fontSize: '40px' }).setOrigin(0.5);
-
-    // ── Next goal tooltip ────────────────────────────────────────────────────
-    if (nextId !== null) {
-      const nNode = NODES[nextId - 1];
-      const text  = MAP_TEXTS[nextId] ?? '';
-      if (text) {
-        const tw = text.length * 14; // rough estimate
-        const bw = tw + 44, bh = 48;
-        let bx = nNode.x - bw / 2;
-        bx = Math.max(14, Math.min(W - bw - 14, bx));
-        const by = Math.max(136, nNode.y - R - 68);
-
-        this.add.graphics()
-          .fillStyle(0xffd223, 0.15).lineStyle(1.5, 0xf9a825, 0.7)
-          .fillRoundedRect(bx, by, bw, bh, 8).strokeRoundedRect(bx, by, bw, bh, 8);
-        this.add.text(bx + bw / 2, by + bh / 2, text, {
-          fontSize: '24px', fontFamily: 'sans-serif', color: '#7a5000',
-        }).setOrigin(0.5);
-      }
-    }
-
-    if (maxCleared >= 10) {
-      this.add.text(W / 2, 160, '🎉 모든 해역 정복 완료!', {
-        fontSize: '34px', fontFamily: 'sans-serif', color: '#1a2744', fontStyle: 'bold',
+        color: '#ffffff',
       }).setOrigin(0.5);
     }
-
-    // ── Stage card panel ─────────────────────────────────────────────────────
-    this._renderCards(645, unlocked, isCleared, isUnlocked, getStars, nextId);
-
-    // ── Buttons ──────────────────────────────────────────────────────────────
-    this._btn(172, 65, 224, 58, '← 돌아가기', false, () => this.scene.start('MainMenuScene'));
-
-    if (nextId !== null) {
-      const sd = STAGES[nextId - 1];
-      const label = `${nextId}해역 입장 — ${sd.name}`;
-      this._btn(W / 2, H - 56, 360, 68, label, true, () => this.scene.start('GameScene', { stageIndex: nextId - 1 }));
-    }
   }
 
-  _renderCards(panelY, unlocked, isCleared, isUnlocked, getStars, nextId) {
-    const panelH = 295;
+  _createWorldMap() {
+    this._storage = new StorageManager();
+    this._save = this._storage.load() ?? {};
+    this._unlocked = this._save.unlockedStages ?? [
+      { id: 1, stars: 0, highScore: 0, cleared: false },
+    ];
+    this._nodeViews = new Map();
+    this._panelObjects = [];
+    this._buttonObjects = [];
+    this._selectedId = this._defaultSelectedId();
 
-    const panelGfx = this.add.graphics();
-    panelGfx.fillStyle(0xffffff, 0.82).fillRect(0, panelY, W, panelH);
-    panelGfx.lineStyle(1, 0x0097a7, 0.35).beginPath().moveTo(0, panelY).lineTo(W, panelY).strokePath();
+    this._drawBackground();
+    this._drawHeader();
+    this._drawRoute();
+    this._drawNodes();
+    this._drawSummaryStrip();
+    this._renderSelectionPanel();
+    this._renderButtons();
+  }
 
-    const clearedCnt = unlocked.filter(s => s.cleared).length;
-    const totalStars = unlocked.reduce((a, s) => a + (s.stars ?? 0), 0);
+  _defaultSelectedId() {
+    const next = this._nextId();
+    if (next !== null) return next;
+    const cleared = this._unlocked.filter(s => s.cleared).map(s => s.id);
+    return cleared.length > 0 ? Math.max(...cleared) : 1;
+  }
 
-    this.add.text(60, panelY + 28, '해역 목록', {
-      fontSize: '22px', fontFamily: 'sans-serif', color: '#1a2744', fontStyle: 'bold',
+  _nextId() {
+    const clearedIds = this._unlocked.filter(s => s.cleared).map(s => s.id);
+    const maxCleared = clearedIds.length > 0 ? Math.max(...clearedIds) : 0;
+    return maxCleared < STAGES.length ? maxCleared + 1 : null;
+  }
+
+  _entry(id) { return this._unlocked.find(s => s.id === id); }
+  _isCleared(id) { return !!this._entry(id)?.cleared; }
+  _isUnlocked(id) { return !!this._entry(id); }
+  _isPlayable(id) { return this._isCleared(id) || this._nextId() === id || this._isUnlocked(id); }
+  _stars(id) { return this._entry(id)?.stars ?? 0; }
+  _highScore(id) { return this._entry(id)?.highScore ?? 0; }
+
+  _drawBackground() {
+    const bg = this.add.graphics();
+    bg.fillGradientStyle(PALETTE.sky, PALETTE.sky, PALETTE.ocean, PALETTE.ocean, 1);
+    bg.fillRect(0, 0, W, H * 0.66);
+    bg.fillGradientStyle(PALETTE.ocean, PALETTE.ocean, PALETTE.deep, PALETTE.deep, 1);
+    bg.fillRect(0, H * 0.58, W, H * 0.42);
+
+    bg.fillStyle(PALETTE.sun, 0.95);
+    bg.fillCircle(290, 150, 74);
+    bg.fillStyle(PALETTE.sun, 0.22);
+    bg.fillCircle(290, 150, 126);
+
+    bg.fillStyle(0xffffff, 0.72);
+    this._cloud(bg, 1270, 130, 1.05);
+    this._cloud(bg, 1545, 190, 0.78);
+    this._cloud(bg, 520, 205, 0.64);
+
+    bg.fillStyle(0xffffff, 0.1);
+    bg.fillRect(0, 262, W, 46);
+    bg.fillStyle(0xffffff, 0.13);
+    for (let i = 0; i < 6; i++) {
+      const y = 742 + i * 52;
+      bg.fillRoundedRect(-80 + i * 36, y, W + 160, 4, 2);
+    }
+
+    this._waveBand(0, 782, 0x054874, 0.18, 1.08);
+    this._waveBand(0, 876, 0x062b4c, 0.22, 0.9);
+  }
+
+  _cloud(g, x, y, s) {
+    g.fillCircle(x, y, 34 * s);
+    g.fillCircle(x + 42 * s, y - 13 * s, 48 * s);
+    g.fillCircle(x + 92 * s, y, 34 * s);
+    g.fillRoundedRect(x - 36 * s, y - 3 * s, 160 * s, 38 * s, 18 * s);
+  }
+
+  _waveBand(x, y, color, alpha, scale) {
+    const g = this.add.graphics();
+    g.fillStyle(color, alpha);
+    g.beginPath();
+    g.moveTo(x, H);
+    g.lineTo(x, y);
+    for (let px = -80; px <= W + 120; px += 24) {
+      const wave = Math.sin(((px + 80) / 160) * Math.PI) * 54 * scale;
+      g.lineTo(px, y - wave);
+    }
+    g.lineTo(W, H);
+    g.closePath();
+    g.fillPath();
+  }
+
+  _drawHeader() {
+    this.add.text(80, 54, '세계지도', {
+      fontSize: '58px',
+      fontFamily: 'sans-serif',
+      fontStyle: 'bold',
+      color: '#ffffff',
+    }).setOrigin(0, 0.5).setShadow(0, 8, 'rgba(4,40,74,0.28)', 18);
+
+    this.add.text(82, 102, '제주에서 태평양 끝까지, 파도 위 항로를 따라갑니다', {
+      fontSize: '24px',
+      fontFamily: 'sans-serif',
+      color: '#e8f5ff',
     });
-    this.add.text(W - 60, panelY + 28, `클리어 ${clearedCnt} / ${STAGES.length}  ★ ${totalStars}`, {
-      fontSize: '20px', fontFamily: 'sans-serif', color: '#0097a7',
-    }).setOrigin(1, 0);
 
-    const cardW = 162, cardH = 230, gap = 12;
-    const totalW = STAGES.length * cardW + (STAGES.length - 1) * gap;
-    const startX = Math.round((W - totalW) / 2);
-    const cardTop = panelY + 44;
+    const clearedCnt = this._unlocked.filter(s => s.cleared).length;
+    const totalStars = this._unlocked.reduce((a, s) => a + (s.stars ?? 0), 0);
+    const high = this._unlocked.reduce((a, s) => Math.max(a, s.highScore ?? 0), 0);
+    this._pill(W - 530, 54, 190, 44, `★ ${totalStars} / 30`, PALETTE.sun, '#07263e');
+    this._pill(W - 326, 54, 230, 44, `클리어 ${clearedCnt} / ${STAGES.length}`, 0xffffff, '#07263e', 0.78);
+    this._pill(W - 80, 54, 220, 44, `BEST ${high.toLocaleString()}`, 0xffffff, '#07263e', 0.64);
+  }
 
-    for (let i = 0; i < STAGES.length; i++) {
-      const stage    = STAGES[i];
-      const id       = stage.id;
-      const cleared  = isCleared(id);
-      const unlocked2 = isUnlocked(id);
-      const isNext   = nextId === id;
-      const stars    = getStars(id);
-      const cx2      = startX + i * (cardW + gap);
-      const cy2      = cardTop;
+  _pill(cx, cy, w, h, label, fill, color, alpha = 0.94) {
+    const g = this.add.graphics();
+    g.fillStyle(fill, alpha);
+    g.lineStyle(1.5, 0xffffff, 0.55);
+    g.fillRoundedRect(cx - w / 2, cy - h / 2, w, h, 8);
+    g.strokeRoundedRect(cx - w / 2, cy - h / 2, w, h, 8);
+    this.add.text(cx, cy + 1, label, {
+      fontSize: '18px',
+      fontFamily: 'sans-serif',
+      fontStyle: 'bold',
+      color,
+    }).setOrigin(0.5);
+  }
 
-      const cGfx = this.add.graphics();
-      if (isNext) {
-        cGfx.fillStyle(0xfff8e1, 0.95).lineStyle(2, 0xf9a825, 0.8);
-      } else if (cleared) {
-        cGfx.fillStyle(0xe0f7fa, 0.92).lineStyle(1, 0x0097a7, 0.55);
-      } else {
-        cGfx.fillStyle(0xffffff, 0.45).lineStyle(1, 0x1a2744, 0.18);
+  _drawRoute() {
+    this._drawIslands();
+
+    const shadow = this.add.graphics();
+    shadow.lineStyle(16, 0x06456d, 0.18);
+    this._strokeRoute(shadow);
+
+    const route = this.add.graphics();
+    route.lineStyle(6, PALETTE.route, 0.82);
+    this._strokeRoute(route);
+
+    const dash = this.add.graphics();
+    dash.lineStyle(3, PALETTE.sun, 0.9);
+    for (let i = 0; i < NODES.length - 1; i++) this._dashedSegment(dash, NODES[i], NODES[i + 1], 18, 14);
+  }
+
+  _strokeRoute(g) {
+    g.beginPath();
+    g.moveTo(NODES[0].x, NODES[0].y);
+    for (let i = 1; i < NODES.length; i++) {
+      const prev = NODES[i - 1];
+      const curr = NODES[i];
+      const midX = (prev.x + curr.x) / 2;
+      const midY = (prev.y + curr.y) / 2 - (i < 6 ? 26 : -10);
+      for (let step = 1; step <= 12; step++) {
+        const t = step / 12;
+        const inv = 1 - t;
+        const x = inv * inv * prev.x + 2 * inv * t * midX + t * t * curr.x;
+        const y = inv * inv * prev.y + 2 * inv * t * midY + t * t * curr.y;
+        g.lineTo(x, y);
       }
-      cGfx.fillRoundedRect(cx2, cy2, cardW, cardH, 8).strokeRoundedRect(cx2, cy2, cardW, cardH, 8);
+    }
+    g.strokePath();
+  }
 
-      const ncx = cx2 + cardW / 2, ncy = cy2 + 36;
-      const nGfx = this.add.graphics();
-      if (cleared) {
-        nGfx.fillStyle(0x1a2744, 1).lineStyle(2, 0x0097a7, 1);
-      } else if (isNext) {
-        nGfx.fillStyle(0xf9a825, 0.9).lineStyle(2, 0xf9a825, 1);
-      } else {
-        nGfx.fillStyle(0xffffff, 0.6).lineStyle(1, 0x1a2744, 0.3);
-      }
-      nGfx.fillCircle(ncx, ncy, 22).strokeCircle(ncx, ncy, 22);
-
-      if (!unlocked2 && !isNext) {
-        this.add.text(ncx, ncy + 6, '🔒', { fontSize: '16px' }).setOrigin(0.5);
-      } else {
-        this.add.text(ncx, ncy + 6, String(id), {
-          fontSize: '16px', fontFamily: 'sans-serif', fontStyle: 'bold',
-          color: cleared ? '#ffffff' : '#1a2744',
-        }).setOrigin(0.5);
-      }
-
-      const nameColor = cleared ? '#1a2744' : isNext ? '#7a5000' : unlocked2 ? 'rgba(26,39,68,0.8)' : 'rgba(26,39,68,0.38)';
-      this.add.text(ncx, cy2 + 66, stage.name, {
-        fontSize: isNext ? '11px' : '11px', fontFamily: 'sans-serif',
-        fontStyle: isNext ? 'bold' : 'normal', color: nameColor, wordWrap: { width: cardW - 10 },
-      }).setOrigin(0.5, 0);
-
-      if (cleared) {
-        this.add.text(ncx, cy2 + 110, '★'.repeat(stars) + '☆'.repeat(3 - stars), {
-          fontSize: '13px', fontFamily: 'sans-serif', color: '#f9a825',
-        }).setOrigin(0.5, 0);
-      } else if (isNext) {
-        this.add.text(ncx, cy2 + 110, '다음 목적지', { fontSize: '10px', fontFamily: 'sans-serif', color: 'rgba(122,80,0,0.85)' }).setOrigin(0.5, 0);
-      } else if (!unlocked2) {
-        this.add.text(ncx, cy2 + 110, `${id - 1}해역 클리어`, { fontSize: '9px', fontFamily: 'sans-serif', color: 'rgba(26,39,68,0.45)' }).setOrigin(0.5, 0);
-      }
-
-      if (cleared || isNext) {
-        const btnLabel = isNext ? '⚓ 입장하기' : '재도전';
-        const btnY2    = cy2 + cardH - 42;
-        const bGfx     = this.add.graphics();
-        bGfx.fillStyle(isNext ? 0xf9a825 : 0x1a2744, isNext ? 0.9 : 0.82);
-        bGfx.fillRoundedRect(cx2 + 8, btnY2 - 15, cardW - 16, 30, 6);
-
-        this.add.text(ncx, btnY2, btnLabel, {
-          fontSize: '11px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
-        }).setOrigin(0.5);
-
-        const idx = i;
-        this.add.zone(ncx, btnY2, cardW - 16, 30)
-          .setInteractive({ useHandCursor: true })
-          .on('pointerdown', () => this.scene.start('GameScene', { stageIndex: idx }));
-      }
+  _dashedSegment(g, a, b, dashLen, gapLen) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const dist = Math.hypot(dx, dy);
+    const ux = dx / dist;
+    const uy = dy / dist;
+    for (let d = 22; d < dist - 22; d += dashLen + gapLen) {
+      const x1 = a.x + ux * d;
+      const y1 = a.y + uy * d;
+      const x2 = a.x + ux * Math.min(d + dashLen, dist - 22);
+      const y2 = a.y + uy * Math.min(d + dashLen, dist - 22);
+      g.beginPath();
+      g.moveTo(x1, y1);
+      g.lineTo(x2, y2);
+      g.strokePath();
     }
   }
 
-  _btn(cx, cy, w, h, label, primary, cb) {
-    const gfx = this.add.graphics();
-    if (primary) {
-      gfx.fillStyle(0x1a2744, 1).fillRoundedRect(cx - w/2, cy - h/2, w, h, 10);
-    } else {
-      gfx.fillStyle(0xffffff, 0.85);
+  _drawIslands() {
+    const g = this.add.graphics();
+    for (const node of NODES) {
+      const cleared = this._isCleared(node.id);
+      const playable = this._isPlayable(node.id);
+      const alpha = playable ? 0.88 : 0.32;
+      const tint = cleared ? 0x8ed58c : PALETTE.sand;
+
+      g.fillStyle(0x063b5e, 0.2 * alpha);
+      g.fillEllipse(node.x + 8, node.y + 44, 132, 28);
+      g.fillStyle(tint, alpha);
+      g.fillEllipse(node.x, node.y + 38, 118, 38);
+      g.fillStyle(0x2fa66d, 0.48 * alpha);
+      g.fillEllipse(node.x - 20, node.y + 29, 58, 20);
     }
-    gfx.lineStyle(2, 0x1a2744, 1).fillRoundedRect(cx - w/2, cy - h/2, w, h, 10).strokeRoundedRect(cx - w/2, cy - h/2, w, h, 10);
+  }
 
-    this.add.text(cx, cy, label, {
-      fontSize: '28px', fontFamily: 'sans-serif',
-      color: primary ? '#ffffff' : '#1a2744', fontStyle: 'bold',
+  _drawNodes() {
+    for (const node of NODES) {
+      const container = this.add.container(node.x, node.y);
+      const ring = this.add.graphics();
+      const body = this.add.graphics();
+      const label = this.add.text(0, 2, String(node.id), {
+        fontSize: '28px',
+        fontFamily: 'sans-serif',
+        fontStyle: 'bold',
+        color: '#07263e',
+      }).setOrigin(0.5);
+      const name = this.add.text(0, 66, STAGES[node.id - 1].name, {
+        fontSize: '19px',
+        fontFamily: 'sans-serif',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        align: 'center',
+        wordWrap: { width: 160 },
+      }).setOrigin(0.5, 0).setShadow(0, 3, 'rgba(4,40,74,0.36)', 8);
+      const stars = this.add.text(0, 98, '', {
+        fontSize: '18px',
+        fontFamily: 'sans-serif',
+        color: '#ffd66b',
+      }).setOrigin(0.5, 0).setShadow(0, 2, 'rgba(4,40,74,0.35)', 6);
+      container.add([ring, body, label, name, stars]);
+
+      const playable = this._isPlayable(node.id);
+      container.setSize(112, 112);
+      if (playable) {
+        container.setInteractive(
+          new Phaser.Geom.Circle(56, 56, 56),
+          Phaser.Geom.Circle.Contains,
+        );
+        container.on('pointerdown', () => this._selectNode(node.id));
+        container.on('pointerover', () => container.setScale(1.05));
+        container.on('pointerout', () => container.setScale(1));
+      }
+
+      this._nodeViews.set(node.id, { ring, body, label, name, stars, container });
+    }
+    this._refreshNodes();
+  }
+
+  _refreshNodes() {
+    const nextId = this._nextId();
+    for (const node of NODES) {
+      const view = this._nodeViews.get(node.id);
+      const selected = node.id === this._selectedId;
+      const cleared = this._isCleared(node.id);
+      const playable = this._isPlayable(node.id);
+      const locked = !playable;
+      const isNext = nextId === node.id;
+
+      view.ring.clear();
+      view.body.clear();
+      view.container.setAlpha(locked ? 0.48 : 1);
+
+      if (selected) {
+        view.ring.fillStyle(PALETTE.sun, 0.22);
+        view.ring.fillCircle(0, 0, 68);
+        view.ring.lineStyle(5, PALETTE.sun, 0.95);
+        view.ring.strokeCircle(0, 0, 56);
+      } else if (isNext) {
+        view.ring.lineStyle(4, PALETTE.sun, 0.72);
+        view.ring.strokeCircle(0, 0, 52);
+      }
+
+      if (cleared) {
+        view.body.fillStyle(PALETTE.foam, 0.98);
+        view.body.lineStyle(4, 0x79ddff, 0.95);
+      } else if (isNext) {
+        view.body.fillStyle(PALETTE.sun, 0.98);
+        view.body.lineStyle(4, 0xffffff, 0.88);
+      } else if (playable) {
+        view.body.fillStyle(0xffffff, 0.82);
+        view.body.lineStyle(3, 0xffffff, 0.62);
+      } else {
+        view.body.fillStyle(0x7aa5bd, 0.36);
+        view.body.lineStyle(3, 0xffffff, 0.24);
+      }
+      view.body.fillCircle(0, 0, 38);
+      view.body.strokeCircle(0, 0, 38);
+
+      view.label.setText(locked ? '잠김' : String(node.id));
+      view.label.setFontSize(locked ? 19 : 28);
+      view.label.setColor(locked ? '#d6e4ed' : '#07263e');
+      view.name.setColor(locked ? 'rgba(232,245,255,0.55)' : '#ffffff');
+
+      const s = this._stars(node.id);
+      view.stars.setText(cleared ? '★'.repeat(s) + '☆'.repeat(3 - s) : isNext ? '다음 목적지' : '');
+      view.stars.setFontSize(isNext && !cleared ? 17 : 18);
+      view.stars.setColor(isNext && !cleared ? '#fff4c2' : '#ffd66b');
+    }
+  }
+
+  _selectNode(id) {
+    if (!this._isPlayable(id)) return;
+    this._selectedId = id;
+    this._refreshNodes();
+    this._renderSelectionPanel();
+    this._renderButtons();
+  }
+
+  _drawSummaryStrip() {
+    const g = this.add.graphics();
+    g.fillStyle(0x063b5e, 0.28);
+    g.fillRoundedRect(72, 842, W - 144, 56, 8);
+    g.lineStyle(1.5, 0xffffff, 0.24);
+    g.strokeRoundedRect(72, 842, W - 144, 56, 8);
+
+    const nextId = this._nextId();
+    const message = nextId === null
+      ? '모든 항로를 정복했습니다. 원하는 해역을 골라 기록을 갱신하세요.'
+      : `${nextId}해역이 다음 목적지입니다. 노드를 눌러 브리핑을 확인하고 출발하세요.`;
+    this.add.text(W / 2, 870, message, {
+      fontSize: '24px',
+      fontFamily: 'sans-serif',
+      fontStyle: 'bold',
+      color: '#e8f5ff',
     }).setOrigin(0.5);
+  }
 
-    this.add.zone(cx, cy, w, h).setInteractive({ useHandCursor: true }).on('pointerdown', cb);
+  _renderSelectionPanel() {
+    this._panelObjects.forEach(obj => obj.destroy());
+    this._panelObjects = [];
+
+    const stage = STAGES[this._selectedId - 1];
+    const cleared = this._isCleared(this._selectedId);
+    const isNext = this._nextId() === this._selectedId;
+    const stars = this._stars(this._selectedId);
+    const highScore = this._highScore(this._selectedId);
+    const types = [...new Set(stage.events.map(event => event.obstacleType))]
+      .map(type => TYPE_LABEL[type] ?? type)
+      .join(', ');
+
+    const add = obj => { this._panelObjects.push(obj); return obj; };
+    const panelX = 72;
+    const panelY = 916;
+    const panelW = W - 144;
+    const panelH = 128;
+
+    const panel = add(this.add.graphics());
+    panel.fillStyle(PALETTE.foam, 0.86);
+    panel.lineStyle(2, 0xffffff, 0.72);
+    panel.fillRoundedRect(panelX, panelY, panelW, panelH, 8);
+    panel.strokeRoundedRect(panelX, panelY, panelW, panelH, 8);
+
+    const badgeColor = cleared ? 0x2fa66d : isNext ? PALETTE.coral : PALETTE.ocean;
+    const badge = add(this.add.graphics());
+    badge.fillStyle(badgeColor, 0.96);
+    badge.fillRoundedRect(panelX + 28, panelY + 26, 124, 76, 8);
+    add(this.add.text(panelX + 90, panelY + 64, `${stage.id}구역`, {
+      fontSize: '28px',
+      fontFamily: 'sans-serif',
+      fontStyle: 'bold',
+      color: '#ffffff',
+    }).setOrigin(0.5));
+
+    add(this.add.text(panelX + 182, panelY + 26, stage.name, {
+      fontSize: '32px',
+      fontFamily: 'sans-serif',
+      fontStyle: 'bold',
+      color: '#07263e',
+    }));
+    add(this.add.text(panelX + 182, panelY + 70, MAP_TEXTS[stage.id], {
+      fontSize: '21px',
+      fontFamily: 'sans-serif',
+      color: '#536f83',
+    }));
+
+    const status = cleared ? `클리어 ★ ${stars}/3` : isNext ? '다음 목적지' : '입장 가능';
+    const statText = [
+      status,
+      `BEST ${highScore.toLocaleString()}`,
+      `장애물 ${types}`,
+      `목표 ${Math.round(stage.duration / 1000)}초 생존`,
+    ];
+    statText.forEach((text, i) => {
+      const x = panelX + 720 + i * 250;
+      add(this.add.text(x, panelY + 42, text, {
+        fontSize: i === 0 ? '23px' : '20px',
+        fontFamily: 'sans-serif',
+        fontStyle: i === 0 ? 'bold' : 'normal',
+        color: i === 0 ? '#07263e' : '#536f83',
+      }).setOrigin(0.5, 0));
+    });
+  }
+
+  _renderButtons() {
+    this._buttonObjects.forEach(obj => obj.destroy());
+    this._buttonObjects = [];
+
+    this._buttonObjects.push(
+      ...this._button(174, 778, 224, 58, '← 돌아가기', false, () => this.scene.start('MainMenuScene')),
+    );
+
+    if (this._isPlayable(this._selectedId)) {
+      const stage = STAGES[this._selectedId - 1];
+      this._buttonObjects.push(
+        ...this._button(W - 234, 778, 330, 64, `${stage.id}구역 도전하기`, true,
+          () => this.scene.start('GameScene', { stageIndex: this._selectedId - 1 })),
+      );
+    }
+  }
+
+  _button(cx, cy, w, h, label, primary, cb) {
+    const objects = [];
+    const gfx = this.add.graphics();
+    objects.push(gfx);
+    if (primary) {
+      gfx.fillGradientStyle(PALETTE.coral, PALETTE.coral, PALETTE.coralDeep, PALETTE.coralDeep, 1);
+      gfx.fillRoundedRect(cx - w / 2, cy - h / 2, w, h, 8);
+      gfx.lineStyle(2, 0xffffff, 0.44);
+    } else {
+      gfx.fillStyle(0xffffff, 0.18);
+      gfx.fillRoundedRect(cx - w / 2, cy - h / 2, w, h, 8);
+      gfx.lineStyle(2, 0xffffff, 0.42);
+    }
+    gfx.strokeRoundedRect(cx - w / 2, cy - h / 2, w, h, 8);
+
+    objects.push(this.add.text(cx, cy + 1, label, {
+      fontSize: primary ? '27px' : '24px',
+      fontFamily: 'sans-serif',
+      fontStyle: 'bold',
+      color: '#ffffff',
+    }).setOrigin(0.5).setShadow(0, 3, 'rgba(4,40,74,0.24)', 8));
+
+    objects.push(this.add.zone(cx, cy, w, h)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', cb));
+    return objects;
   }
 }
