@@ -21,26 +21,30 @@ export const SignalType = Object.freeze({
   FLASH:    'FLASH',
 });
 
+// avoid: 'jump' = 점프로 넘을 수 있음(낮은 장애물) | 'move' = 점프 무효, 미리 위치 이동해야 함
 export const OBSTACLE_META = Object.freeze({
-  [ObstacleType.FLYING_FISH]: { signalType: SignalType.SPLASH,   name: '날치',   signalName: '물보라', hitboxW:  80, hitboxH:  40 },
-  [ObstacleType.SHARK]:       { signalType: SignalType.FIN,      name: '상어',   signalName: '등지느러미', hitboxW: 100, hitboxH:  60 },
-  [ObstacleType.WHALE]:       { signalType: SignalType.SHADOW,   name: '고래',   signalName: '바닷속 그림자', hitboxW: 200, hitboxH: 100 },
-  [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     name: '해파리', signalName: '빛나는 점', hitboxW:  70, hitboxH:  70 },
-  [ObstacleType.OCTOPUS]:     { signalType: SignalType.TENTACLE, name: '문어',   signalName: '다리 그림자', hitboxW: 120, hitboxH:  80 },
-  [ObstacleType.LIGHTNING]:   { signalType: SignalType.FLASH,    name: '번개',   signalName: '섬광', hitboxW:  40, hitboxH: 300 },
+  [ObstacleType.FLYING_FISH]: { signalType: SignalType.SPLASH,   name: '날치',   signalName: '물보라', hitboxW:  80, hitboxH:  40, avoid: 'jump' },
+  [ObstacleType.SHARK]:       { signalType: SignalType.FIN,      name: '상어',   signalName: '등지느러미', hitboxW: 100, hitboxH:  60, avoid: 'jump' },
+  [ObstacleType.WHALE]:       { signalType: SignalType.SHADOW,   name: '고래',   signalName: '바닷속 그림자', hitboxW: 200, hitboxH: 100, avoid: 'move' },
+  [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     name: '해파리', signalName: '빛나는 점', hitboxW:  70, hitboxH:  70, avoid: 'jump' },
+  [ObstacleType.OCTOPUS]:     { signalType: SignalType.TENTACLE, name: '문어',   signalName: '다리 그림자', hitboxW: 120, hitboxH:  80, avoid: 'jump' },
+  [ObstacleType.LIGHTNING]:   { signalType: SignalType.FLASH,    name: '번개',   signalName: '섬광', hitboxW:  40, hitboxH: 300, avoid: 'move' },
 });
 
 // ─── SignalInstance (예고 신호 — 6종 고유 비주얼) ─────────────────────────────
 class SignalInstance {
   constructor(event, spawnX, scene) {
+    this.scene    = scene;
     this.event    = event;
     this.type     = event.signalType ?? OBSTACLE_META[event.obstacleType].signalType;
     this.x        = spawnX;
     this.y        = eventRideY(event);
     this.duration = event.telegraphMs;
     this.targeted = !!event.targeted;
+    this.isFake   = !!event.isFake;
     this.elapsed  = 0;
     this.done     = false;
+    this._told    = false;       // 등장 직전 tell 1회성
     this.gfx      = scene.add.graphics().setDepth(1);
   }
 
@@ -49,6 +53,11 @@ class SignalInstance {
   update(deltaMs) {
     this.elapsed += deltaMs;
     if (this.elapsed >= this.duration) this.done = true;
+    // 실제 공격 직전 tell: 짧은 화면 흔들림(가짜 신호는 블러핑 — tell 없음)
+    if (!this._told && !this.isFake && this.progress >= 0.8) {
+      this._told = true;
+      this.scene.cameras.main.shake(90, 0.0022);
+    }
     this._redraw();
   }
 
@@ -133,6 +142,14 @@ class SignalInstance {
       }
     }
 
+    // 등장 직전 tell: 신호가 밝게 번쩍이며 곧 공격이 옴을 알림(가짜 신호 제외)
+    if (!this.isFake && p >= 0.8) {
+      const f     = (p - 0.8) / 0.2;              // 0→1
+      const blink = (Math.sin(this.elapsed * 0.05) + 1) / 2;
+      gfx.lineStyle(3 + f * 3, 0xffffff, (0.3 + blink * 0.5) * f);
+      gfx.strokeCircle(x, y, 22 + f * 30);
+    }
+
     // 타겟 분출: '너를 노린다' 조준 레티클 (빨강 점멸 링 + 십자선)
     if (this.targeted) {
       const blink = (Math.sin(this.elapsed * 0.03) + 1) / 2;
@@ -187,6 +204,7 @@ class ObstacleInstance {
     const meta   = OBSTACLE_META[this.type];
     this.hitboxW = meta.hitboxW;
     this.hitboxH = meta.hitboxH;
+    this.avoidMode = meta.avoid;                            // 'jump' | 'move'
     this.fromAbove = this.type === ObstacleType.LIGHTNING;  // 번개는 위→아래
     this.parts   = {};
 
@@ -447,8 +465,9 @@ export class ObstacleManager {
     if (obs.collidable) {
       const hb = player.hitbox;
       if (!this._aabb(hb, obs.hitbox) && this._aabb(hb, obs.grazebox)) obs.grazed = true;
+      // 퍼펙트 점프는 '점프로 넘는' 장애물에만 — 고래·번개(move)는 점프로 못 넘음
       const vNear = Math.abs(obs.targetY - player.baseY) < obs.hitboxH / 2 + 60;
-      if (!player.isGrounded && vNear) obs.jumpedOver = true;
+      if (obs.avoidMode === 'jump' && !player.isGrounded && vNear) obs.jumpedOver = true;
     }
     if (!obs.resolved && !obs.hitByPlayer && obs.isResolved()) {
       obs.resolved = true;
@@ -504,10 +523,13 @@ export class ObstacleManager {
     this.obstacles = this.obstacles.filter(o => o.active);
   }
 
-  checkCollision(playerHitbox) {
+  // move 장애물은 baseY(점프 무시) 박스로 판정 → 점프로 못 피하고 위치 이동을 강제.
+  // jump 장애물은 실제 박스(점프 높이 반영)로 판정 → 점프로 넘을 수 있음.
+  checkCollision(player) {
     for (const obs of this.obstacles) {
       if (!obs.collidable || obs.hitByPlayer) continue;
-      if (this._aabb(playerHitbox, obs.hitbox)) { obs.hitByPlayer = true; return obs; }
+      const pb = obs.avoidMode === 'move' ? player.groundHitbox : player.hitbox;
+      if (this._aabb(pb, obs.hitbox)) { obs.hitByPlayer = true; return obs; }
     }
     return null;
   }

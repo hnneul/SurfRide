@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" width="1200" height="480" role="img" aria-label="선글라스와 꽃목걸이를 한 하와이안 강아지가 파도를 서핑하는 그림">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bdeeff"/>
+      <stop offset="0.55" stop-color="#7fd0f7"/>
+      <stop offset="1" stop-color="#56b7ef"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#43e0d2"/>
+      <stop offset="1" stop-color="#0a93b8"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#7ff0e4"/>
+      <stop offset="1" stop-color="#13a6cb"/>
+    </linearGradient>
+    <linearGradient id="waveBack" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#9af3ea"/>
+      <stop offset="1" stop-color="#37c0d6"/>
+    </linearGradient>
+    <linearGradient id="board" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff7a59"/>
+      <stop offset="0.5" stop-color="#ff9f43"/>
+      <stop offset="1" stop-color="#ffce54"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff4c2"/>
+      <stop offset="0.6" stop-color="#ffd84d"/>
+      <stop offset="1" stop-color="#ffc107"/>
+    </radialGradient>
+    <linearGradient id="dogBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4c07e"/>
+      <stop offset="1" stop-color="#e0a259"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="1200" height="480" fill="url(#sky)"/>
+
+  <!-- Sun -->
+  <circle cx="205" cy="120" r="92" fill="#ffe27a" opacity="0.18"/>
+  <circle cx="205" cy="120" r="64" fill="#ffe27a" opacity="0.30"/>
+  <circle cx="205" cy="120" r="40" fill="url(#sun)"/>
+
+  <!-- Clouds -->
+  <g fill="#ffffff" opacity="0.9">
+    <g opacity="0.85">
+      <ellipse cx="470" cy="92" rx="46" ry="22"/>
+      <ellipse cx="510" cy="80" rx="34" ry="24"/>
+      <ellipse cx="430" cy="84" rx="30" ry="20"/>
+    </g>
+    <g opacity="0.7">
+      <ellipse cx="900" cy="70" rx="40" ry="18"/>
+      <ellipse cx="935" cy="60" rx="28" ry="20"/>
+      <ellipse cx="868" cy="64" rx="24" ry="16"/>
+    </g>
+  </g>
+
+  <!-- Distant sea -->
+  <rect y="300" width="1200" height="180" fill="url(#sea)"/>
+
+  <!-- Big curling wave (back) -->
+  <path fill="url(#waveBack)" d="M1200,150
+    C1010,135 880,205 850,320
+    C835,388 880,440 1000,448
+    C1090,454 1160,420 1200,372 Z"/>
+  <!-- Foam lip on back wave -->
+  <path fill="#ffffff" opacity="0.92" d="M1200,150
+    C1010,135 880,205 850,320
+    C846,300 905,255 1000,250
+    C1090,246 1160,250 1200,235 Z"/>
+
+  <!-- Main wave the dog rides -->
+  <path fill="url(#wave)" d="M70,360
+    C170,250 330,180 520,210
+    C700,238 820,330 940,360
+    C760,420 540,452 360,448
+    C220,445 120,420 70,360 Z"/>
+  <!-- Wave crest foam -->
+  <path fill="#ffffff" opacity="0.95" d="M70,360
+    C170,250 330,180 520,210
+    C700,238 820,330 940,360
+    C860,352 780,300 640,288
+    C470,274 300,300 190,352
+    C150,366 105,368 70,360 Z"/>
+
+  <!-- Board shadow -->
+  <ellipse cx="475" cy="404" rx="196" ry="20" fill="#063b52" opacity="0.18"/>
+
+  <!-- Dog + board -->
+  <g transform="rotate(-8 475 360)">
+    <!-- Surfboard -->
+    <ellipse cx="475" cy="378" rx="208" ry="27" fill="url(#board)"/>
+    <ellipse cx="475" cy="373" rx="206" ry="8" fill="#fff3d6" opacity="0.9"/>
+    <ellipse cx="475" cy="378" rx="208" ry="27" fill="none" stroke="#e65f3a" stroke-width="3" opacity="0.5"/>
+
+    <!-- Tail -->
+    <path d="M402,330 C360,322 338,292 360,272 C372,300 392,312 416,318 Z" fill="url(#dogBody)"/>
+
+    <!-- Back / raised arm (waving) -->
+    <path d="M420,288 C392,250 368,214 352,188 C346,176 360,166 372,174 C392,202 420,242 442,272 Z" fill="url(#dogBody)"/>
+    <circle cx="356" cy="180" r="17" fill="#f4c07e"/>
+
+    <!-- Body -->
+    <ellipse cx="478" cy="306" rx="80" ry="86" fill="url(#dogBody)"/>
+    <ellipse cx="492" cy="322" rx="46" ry="58" fill="#fbe2bb"/>
+
+    <!-- Front paws on board -->
+    <ellipse cx="446" cy="358" rx="24" ry="16" fill="#e0a259"/>
+    <ellipse cx="516" cy="360" rx="24" ry="16" fill="#e0a259"/>
+
+    <!-- Forward arm -->
+    <path d="M528,300 C556,302 582,300 600,294 C612,290 614,308 602,314 C580,322 548,322 524,316 Z" fill="url(#dogBody)"/>
+
+    <!-- Lei (flower necklace) -->
+    <g>
+      <circle cx="418" cy="288" r="12" fill="#ff5d8f"/>
+      <circle cx="442" cy="300" r="12" fill="#ffd23f"/>
+      <circle cx="468" cy="306" r="12" fill="#ffffff"/>
+      <circle cx="495" cy="306" r="12" fill="#ff8a3d"/>
+      <circle cx="521" cy="300" r="12" fill="#9b5de5"/>
+      <circle cx="544" cy="289" r="12" fill="#ff5d8f"/>
+      <circle cx="565" cy="276" r="11" fill="#ffd23f"/>
+      <g fill="#ffb703" opacity="0.9">
+        <circle cx="418" cy="288" r="3.5"/><circle cx="442" cy="300" r="3.5"/>
+        <circle cx="468" cy="306" r="3.5"/><circle cx="495" cy="306" r="3.5"/>
+        <circle cx="521" cy="300" r="3.5"/><circle cx="544" cy="289" r="3.5"/>
+        <circle cx="565" cy="276" r="3"/>
+      </g>
+    </g>
+
+    <!-- Head -->
+    <!-- Ears -->
+    <ellipse cx="424" cy="186" rx="25" ry="46" fill="#c98a3f" transform="rotate(-24 424 186)"/>
+    <ellipse cx="544" cy="190" rx="25" ry="46" fill="#c98a3f" transform="rotate(26 544 190)"/>
+    <circle cx="484" cy="200" r="66" fill="url(#dogBody)"/>
+
+    <!-- Muzzle -->
+    <ellipse cx="522" cy="222" rx="44" ry="34" fill="#fbe2bb"/>
+    <path d="M524,228 C524,244 524,250 524,252" stroke="#b07c3e" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <!-- Tongue -->
+    <path d="M512,250 q12,30 24,2 Z" fill="#ff6f91"/>
+    <path d="M524,252 v14" stroke="#e0436b" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Nose -->
+    <ellipse cx="556" cy="210" rx="13" ry="11" fill="#3a2b22"/>
+    <ellipse cx="552" cy="207" rx="4" ry="3" fill="#ffffff" opacity="0.7"/>
+
+    <!-- Sunglasses -->
+    <g>
+      <rect x="437" y="178" width="44" height="34" rx="14" fill="#1f2733"/>
+      <rect x="489" y="178" width="44" height="34" rx="14" fill="#1f2733"/>
+      <rect x="479" y="190" width="12" height="7" rx="3" fill="#1f2733"/>
+      <path d="M437,190 H410" stroke="#1f2733" stroke-width="7" stroke-linecap="round"/>
+      <path d="M444,184 l28,6" stroke="#5b6b7d" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+      <path d="M496,184 l28,6" stroke="#5b6b7d" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+    </g>
+  </g>
+
+  <!-- Spray / splashes -->
+  <g fill="#ffffff">
+    <circle cx="660" cy="372" r="16" opacity="0.95"/>
+    <circle cx="690" cy="356" r="11" opacity="0.85"/>
+    <circle cx="712" cy="378" r="9" opacity="0.8"/>
+    <circle cx="640" cy="392" r="10" opacity="0.7"/>
+    <circle cx="300" cy="396" r="12" opacity="0.85"/>
+    <circle cx="272" cy="384" r="8" opacity="0.7"/>
+    <circle cx="328" cy="408" r="7" opacity="0.6"/>
+  </g>
+</svg>

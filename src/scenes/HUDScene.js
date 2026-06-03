@@ -42,6 +42,23 @@ export default class HUDScene extends Phaser.Scene {
     this.mulBadge  = this.add.graphics();
     this.mulText   = this.add.text(0, 0, '', txt(24, true)).setOrigin(0.5);
 
+    // ── 체력 하트 (HUD 바 아래 좌측) ──
+    this.hearts = [];
+    const maxHp = this.gameScene?.player?.maxHealth ?? 3;
+    for (let i = 0; i < maxHp; i++) {
+      this.hearts.push(
+        this.add.text(40 + i * 46, 124, '♥', txt(42, true, '#ff4d5e')).setOrigin(0, 0.5)
+      );
+    }
+
+    // ── 기상 이변 배너 (구간 점수 ×2) ──
+    this.weatherBadge = this.add.graphics();
+    this.weatherText = this.add.text(W / 2, 150, '⚡ 기상 이변 · 점수 ×2', {
+      ...txt(30, true), color: '#fff0a0',
+    }).setOrigin(0.5);
+    this.weatherBadge.setVisible(false);
+    this.weatherText.setVisible(false);
+
     // ── 하단 중앙: 밸런스 바 (균형/와이프아웃 경고) ──
     this.balanceW = 520;
     this.balanceX = W / 2;
@@ -92,7 +109,37 @@ export default class HUDScene extends Phaser.Scene {
     this.mulBadge.fillRoundedRect(bx - 50, by - 18, 100, 36, 8);
     this.mulText.setText(`×${mul.toFixed(1)}`).setPosition(bx, by);
 
+    // 체력 — 남은 하트 빨강, 잃은 하트 어둡게. 무적 중엔 가장 마지막 하트 점멸.
+    const hp = gs.player.health;
+    const blink = (Math.sin(this.time.now * 0.02) + 1) / 2;
+    this.hearts.forEach((h, i) => {
+      if (i < hp) {
+        const fading = gs.player.invulnerable && i === hp - 1;
+        h.setColor('#ff4d5e').setAlpha(fading ? 0.4 + blink * 0.6 : 1);
+      } else {
+        h.setColor('#39495a').setAlpha(1);
+      }
+    });
+
     this._drawBalanceBar(gs.player.tilt);
+    this._drawWeatherBanner(!!gs._weatherActive);
+  }
+
+  _drawWeatherBanner(active) {
+    this.weatherBadge.setVisible(active);
+    this.weatherText.setVisible(active);
+    if (!active) return;
+
+    const pulse = (Math.sin(this.time.now * 0.012) + 1) / 2;
+    const w = this.weatherText.width + 56;
+    const h = 52;
+    const x = W / 2, y = 150;
+    this.weatherBadge.clear();
+    this.weatherBadge.fillStyle(0x6a1b9a, 0.35 + pulse * 0.25);
+    this.weatherBadge.fillRoundedRect(x - w / 2, y - h / 2, w, h, 14);
+    this.weatherBadge.lineStyle(2, 0xfff04d, 0.5 + pulse * 0.5);
+    this.weatherBadge.strokeRoundedRect(x - w / 2, y - h / 2, w, h, 14);
+    this.weatherText.setAlpha(0.7 + pulse * 0.3);
   }
 
   _drawBalanceBar(tilt) {

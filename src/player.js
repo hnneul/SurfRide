@@ -1,5 +1,6 @@
 import {
   LOGICAL_WIDTH, RIDE_TOP_Y, RIDE_BOTTOM_Y, isDangerY, zoneMultiplierForY, BALANCE,
+  MAX_HEALTH, HIT_IFRAME_MS,
 } from './constants.js';
 
 // 스폰 데이터 호환을 위한 재수출
@@ -14,6 +15,7 @@ export class Player {
   constructor(scene) {
     this.scene = scene;
 
+    this.maxHealth = MAX_HEALTH;
     this.hitboxW = 58;
     this.hitboxH = 88;
 
@@ -63,13 +65,19 @@ export class Player {
     this.wiped      = false;
     this._driftSeed = Math.random() * Math.PI * 2;
 
+    // 체력 & 피격 무적
+    this.health     = this.maxHealth;
+    this.invulnMs   = 0;
+
     this.visual?.setPosition(this.x, this.y);
     this.visual?.setRotation(0);
     this.shadow?.setPosition(this.x, this.baseY + 34);
   }
 
   get inWarning() { return Math.abs(this.tilt) >= BALANCE.WARN_AT; }
+  get invulnerable() { return this.invulnMs > 0; }
 
+  // 실제 히트박스 — 점프 높이(jumpOffset) 반영. 점프로 피할 수 있는 장애물용.
   get hitbox() {
     return {
       x: this.x - this.hitboxW / 2,
@@ -79,11 +87,31 @@ export class Player {
     };
   }
 
+  // 파도 면 기준 히트박스 — 점프를 무시(baseY). 점프로 못 피하는(위치이동) 장애물용.
+  get groundHitbox() {
+    return {
+      x: this.x - this.hitboxW / 2,
+      y: (this.baseY - 12) - this.hitboxH / 2,
+      w: this.hitboxW,
+      h: this.hitboxH,
+    };
+  }
+
+  // 피격: 무적 중이면 무시. 하트 차감 후 사망 여부 반환.
+  takeHit() {
+    if (this.invulnMs > 0) return false;
+    this.health   = Math.max(0, this.health - 1);
+    this.invulnMs = HIT_IFRAME_MS;
+    return this.health <= 0;
+  }
+
   get inDanger()      { return isDangerY(this.baseY); }
   get zoneMultiplier(){ return zoneMultiplierForY(this.baseY); }
 
   update(deltaMs, cursors, spaceKey) {
     const dt = deltaMs / 1000;
+
+    if (this.invulnMs > 0) this.invulnMs = Math.max(0, this.invulnMs - deltaMs);
 
     this._handleSteer(dt, cursors);
     this._handleBalance(dt, cursors);
@@ -161,6 +189,9 @@ export class Player {
     this.visual.setPosition(this.x, this.y);
     this.visual.setRotation(carve + balance + air);
     this.board.setFillStyle(this.isGrounded ? 0xfff2b2 : 0xffffff);
+
+    // 피격 무적 중 깜빡임
+    this.visual.setAlpha(this.invulnMs > 0 && Math.floor(this.invulnMs / 90) % 2 === 0 ? 0.35 : 1);
 
     this.shadow.setPosition(this.x, this.baseY + 34);
     this.shadow.setScale(this.isGrounded ? 1 : 0.72, this.isGrounded ? 1 : 0.8);

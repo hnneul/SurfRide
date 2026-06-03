@@ -18,6 +18,12 @@ export const ERUPT_SINK_MS   = 240;
 // Near-miss(아슬아슬 회피) 판정 여유 — 히트박스 둘레 그레이즈 반경
 export const GRAZE_MARGIN = 46;
 
+// ─── 체력 (긴장형: 즉사 대신 다회 피격) ───────────────────────────────────────
+// 충돌해도 즉시 끝나지 않고 하트가 줄어든다. 피격 후 짧은 무적으로 연속 피격 방지.
+// (균형 와이프아웃은 별개 — 충분히 예고되므로 즉시 종료 유지)
+export const MAX_HEALTH    = 3;
+export const HIT_IFRAME_MS = 1100;
+
 // ─── 균형 & 와이프아웃 (긴장형) ───────────────────────────────────────────────
 export const BALANCE = Object.freeze({
   BASE_DRIFT:   0.18,   // 기본 드리프트 속도 (/s)

@@ -6,8 +6,12 @@ export const SCORE = Object.freeze({
   NEAR_MISS:        150,   // 아슬아슬 회피 보너스
   PERFECT_JUMP:     200,
   DANGER_PER_SEC:    30,   // 위험 구간 체류 시 초당 보너스
+  GOLDEN_FISH:      500,   // 황금 물고기 획득
   STAGE_CLEAR:     1000,
 });
+
+// 기상 이변 구간: 해당 구간에서 얻는 점수에 ×2 (보너스분은 WEATHER_BONUS로 적립)
+export const WEATHER_MULTIPLIER = 2;
 
 const COMBO_MULTIPLIERS = [
   { minCombo:  0, mul: 1.0 },
@@ -17,14 +21,23 @@ const COMBO_MULTIPLIERS = [
 ];
 
 export const ScoreEvent = Object.freeze({
-  SURVIVAL:      'SURVIVAL',
-  DODGE:         'DODGE',
-  NEAR_MISS:     'NEAR_MISS',
-  PERFECT_JUMP:  'PERFECT_JUMP',
-  COMBO_BONUS:   'COMBO_BONUS',
-  DANGER_LANE:   'DANGER_LANE',
-  STAGE_CLEAR:   'STAGE_CLEAR',
+  SURVIVAL:       'SURVIVAL',
+  DODGE:          'DODGE',
+  NEAR_MISS:      'NEAR_MISS',
+  PERFECT_JUMP:   'PERFECT_JUMP',
+  COMBO_BONUS:    'COMBO_BONUS',
+  DANGER_LANE:    'DANGER_LANE',
+  GOLDEN_FISH:    'GOLDEN_FISH',
+  WEATHER_BONUS:  'WEATHER_BONUS',
+  STAGE_CLEAR:    'STAGE_CLEAR',
 });
+
+// 기상 이변 ×2가 적용되지 않는 항목: 보너스 자기참조 방지 + 고정 보상(클리어/아이템)은 제외
+const WEATHER_EXEMPT = new Set([
+  ScoreEvent.WEATHER_BONUS,
+  ScoreEvent.GOLDEN_FISH,
+  ScoreEvent.STAGE_CLEAR,
+]);
 
 export class ScoreManager {
   constructor() { this.reset(); }
@@ -37,6 +50,7 @@ export class ScoreManager {
     this.nearMisses          = 0;
     this.maxComboMultiplier  = 1.0;
     this.dangerSeconds       = 0;    // 위험 구간 누적 체류 시간(초)
+    this.goldenFish          = 0;    // 황금 물고기 획득 수
     this.breakdown = {
       [ScoreEvent.SURVIVAL]:      0,
       [ScoreEvent.DODGE]:         0,
@@ -44,9 +58,12 @@ export class ScoreManager {
       [ScoreEvent.PERFECT_JUMP]:  0,
       [ScoreEvent.COMBO_BONUS]:   0,
       [ScoreEvent.DANGER_LANE]:   0,
+      [ScoreEvent.GOLDEN_FISH]:   0,
+      [ScoreEvent.WEATHER_BONUS]: 0,
       [ScoreEvent.STAGE_CLEAR]:   0,
     };
-    this._survivalAcc = 0;
+    this._survivalAcc   = 0;
+    this._weatherActive = false;
   }
 
   // 시간 기반 점수(생존·위험 구간)만 담당. 회피/니어미스/퍼펙트는 이벤트로 호출.
@@ -84,6 +101,15 @@ export class ScoreManager {
   onStageClear() { this._add(ScoreEvent.STAGE_CLEAR, SCORE.STAGE_CLEAR); }
   onComboBreak() { this.combo = 0; }
 
+  onGoldenFish() {
+    this.goldenFish++;
+    this._add(ScoreEvent.GOLDEN_FISH, SCORE.GOLDEN_FISH);
+  }
+
+  // 기상 이변 구간 진입/이탈 — 활성 동안 구간 점수가 ×2 (보너스분은 WEATHER_BONUS로 적립)
+  setWeather(active) { this._weatherActive = !!active; }
+  get weatherActive() { return this._weatherActive; }
+
   _applyMultipliers(base, y) {
     return Math.round(base * zoneMultiplierForY(y) * this._comboMultiplier());
   }
@@ -97,8 +123,16 @@ export class ScoreManager {
   }
 
   _add(type, pts) {
+    if (!pts) return;
     this.total += pts;
     this.breakdown[type] = (this.breakdown[type] ?? 0) + pts;
+
+    // 기상 이변 ×2: 동일 점수를 보너스로 추가 적립(고정 보상 제외)
+    if (this._weatherActive && !WEATHER_EXEMPT.has(type)) {
+      const bonus = pts * (WEATHER_MULTIPLIER - 1);
+      this.total += bonus;
+      this.breakdown[ScoreEvent.WEATHER_BONUS] += bonus;
+    }
   }
 
   getSummary() {
@@ -110,6 +144,7 @@ export class ScoreManager {
       perfectJumps:       this.perfectJumps,
       nearMisses:         this.nearMisses,
       dangerSeconds:      this.dangerSeconds,
+      goldenFish:         this.goldenFish,
       breakdown:          { ...this.breakdown },
     };
   }

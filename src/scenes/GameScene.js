@@ -1,103 +1,12 @@
 import Phaser from 'phaser';
-import {
-  LOGICAL_WIDTH, LOGICAL_HEIGHT, RIDE_TOP_Y, RIDE_BOTTOM_Y, DANGER_TOP_Y,
-} from '../constants.js';
+import { LOGICAL_WIDTH, LOGICAL_HEIGHT } from '../constants.js';
 import { Player } from '../player.js';
 import { ObstacleManager } from '../obstacle.js';
 import { ScoreManager } from '../score.js';
 import { StorageManager } from '../storage.js';
 import { STAGES } from '../stages.js';
-
-const BACKGROUND_THEMES = Object.freeze({
-  jeju: {
-    sky:    [0x89d9ff, 0x46a9d6, 0x1e78b8],
-    sea:    [0x1e75bb, 0x0d4d86, 0x062945],
-    clouds: 0.85,
-    island: { color: 0x2f735e, alpha: 0.34, y: 0.37 },
-    waveTint: 0xa0d7ff,
-    sparkle: 0.55,
-  },
-  jeju_coast: {
-    sky:    [0xb6f0ff, 0x58c7dc, 0x1596b5],
-    sea:    [0x19a6b5, 0x05768c, 0x03475d],
-    clouds: 0.78,
-    island: { color: 0x2f8065, alpha: 0.42, y: 0.39 },
-    reef:   { color: 0x83d9c7, alpha: 0.16 },
-    waveTint: 0xd5fff8,
-    sparkle: 0.7,
-  },
-  south_jeju: {
-    sky:    [0x8fcdf8, 0x3e91d0, 0x1d5c9a],
-    sea:    [0x1669ae, 0x0a3c78, 0x041c3a],
-    clouds: 0.65,
-    island: { color: 0x214e69, alpha: 0.28, y: 0.35 },
-    swell:  1.25,
-    waveTint: 0xc6e7ff,
-    sparkle: 0.42,
-  },
-  east_china_sea: {
-    sky:    [0xc7e9f5, 0x80bfd1, 0x4f8cab],
-    sea:    [0x276f9f, 0x15527b, 0x092d4f],
-    clouds: 0.9,
-    mist:   { color: 0xffffff, alpha: 0.16 },
-    waveTint: 0xd7eef7,
-    sparkle: 0.36,
-  },
-  okinawa: {
-    sky:    [0x9beaff, 0x3fc9d3, 0x1395b0],
-    sea:    [0x12b9bb, 0x087b98, 0x043f63],
-    clouds: 0.72,
-    reef:   { color: 0xffdd8a, alpha: 0.18 },
-    waveTint: 0xe3fff4,
-    sparkle: 0.78,
-  },
-  philippines: {
-    sky:    [0xb7d3e8, 0x6d94b3, 0x3e5d83],
-    sea:    [0x245f8f, 0x123d68, 0x071f3b],
-    clouds: 0.5,
-    mist:   { color: 0xdde8f0, alpha: 0.22 },
-    swell:  1.35,
-    waveTint: 0xc4d8ea,
-    sparkle: 0.24,
-  },
-  pacific_night: {
-    sky:    [0x182c5c, 0x0c1d42, 0x030b20],
-    sea:    [0x0d2f62, 0x071d3f, 0x020814],
-    clouds: 0.28,
-    stars:  true,
-    swell:  1.15,
-    waveTint: 0x81b7ff,
-    sparkle: 0.8,
-  },
-  volcanic: {
-    sky:    [0x5f6f86, 0x354b62, 0x231f2b],
-    sea:    [0x234f6e, 0x183246, 0x0b1724],
-    clouds: 0.35,
-    volcanicGlow: true,
-    swell:  1.28,
-    waveTint: 0xffa866,
-    sparkle: 0.28,
-  },
-  storm: {
-    sky:    [0x657689, 0x39485d, 0x151d2e],
-    sea:    [0x1c4966, 0x102b43, 0x06111f],
-    clouds: 0.32,
-    storm:  true,
-    swell:  1.55,
-    waveTint: 0xb7c7d8,
-    sparkle: 0.12,
-  },
-  final: {
-    sky:    [0x3b4258, 0x191f33, 0x070914],
-    sea:    [0x132d52, 0x081a32, 0x020611],
-    clouds: 0.22,
-    storm:  true,
-    stars:  true,
-    swell:  1.75,
-    waveTint: 0xd4e5ff,
-    sparkle: 0.38,
-  },
-});
+import { OceanBackground } from '../oceanBackground.js';
+import { GoldenFishManager } from '../goldenFish.js';
 
 const TUTORIAL_STEPS = [
   { until:  3400, text: '↑ ↓ 방향키로 파도를 타고 오르내려요' },
@@ -116,22 +25,25 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     this.stage = STAGES[this.stageIndex] ?? STAGES[0];
-    this.bgTheme = BACKGROUND_THEMES[this.stage.theme] ?? BACKGROUND_THEMES.jeju;
     this.stageTimer  = 0;
     this.worldOffset = 0;
     this._active     = true;
     this._wasInDanger = false;
+    this._wasGrounded = true;
     this._slowmoMs   = 0;
 
-    this.bgGfx     = this.add.graphics().setDepth(0);
+    this.ocean     = new OceanBackground(this, this.stage.theme);
     this.dangerGfx = this.add.graphics().setDepth(4);
 
     this.storage         = new StorageManager();
     this.scoreManager    = new ScoreManager();
     this.player          = new Player(this);
     this.obstacleManager = new ObstacleManager(this);
+    this.goldenFish      = new GoldenFishManager(this);
     this.storage.setCurrentStage(this.stageIndex);
     this.obstacleManager.loadStage(this.stage);
+
+    this._setupWeather();
 
     this.cursors  = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
@@ -157,16 +69,23 @@ export default class GameScene extends Phaser.Scene {
     this.stageTimer  += dt;
     this.worldOffset += this.obstacleManager.scrollSpeed * (dt / 1000);
 
+    this._updateWeather();
     this.player.update(dt, this.cursors, this.spaceKey);
     this.obstacleManager.update(dt, this.stageTimer, this.player);
+    const caught = this.goldenFish.update(dt, this.player);
+    for (let i = 0; i < caught; i++) this.scoreManager.onGoldenFish();
+    if (caught > 0) this._onGoldenFish();
     this.scoreManager.update(dt, this.player);
     this._resolveScoring();
+    this._handleSpray();
     this._updateTutorial();
 
     if (this.player.wiped) { this._gameOver(null, 'wipeout'); return; }
 
-    const hit = this.obstacleManager.checkCollision(this.player.hitbox);
-    if (hit) { this._gameOver(hit, 'collision'); return; }
+    if (!this.player.invulnerable) {
+      const hit = this.obstacleManager.checkCollision(this.player);
+      if (hit && this._onHit(hit)) { this._gameOver(hit, 'collision'); return; }
+    }
 
     if (this.stageTimer >= this.obstacleManager._stageDuration) {
       this._stageClear();
@@ -178,8 +97,30 @@ export default class GameScene extends Phaser.Scene {
       this._pause();
     }
 
-    this._renderBackground();
+    this._renderBackground(dt);
     this._renderDanger();
+  }
+
+  // 피격: 하트 차감·콤보 리셋·연출. 사망(하트 0)이면 true 반환 → 게임오버.
+  _onHit(obstacle) {
+    const dead = this.player.takeHit();
+    this.scoreManager.onComboBreak();
+    this.ocean.pulse();
+    this.ocean.splash(this.player.x, this.player.y + 6, 1.8);
+    this.cameras.main.shake(dead ? 320 : 180, dead ? 0.012 : 0.008);
+    this.cameras.main.flash(140, 255, 90, 90, false);
+    return dead;
+  }
+
+  // 점프 이륙·착지 순간에 물보라 분출
+  _handleSpray() {
+    const grounded = this.player.isGrounded;
+    if (this._wasGrounded && !grounded) {
+      this.ocean.splash(this.player.x, this.player.baseY + 12, 1.0);   // 이륙
+    } else if (!this._wasGrounded && grounded) {
+      this.ocean.splash(this.player.x, this.player.baseY + 14, 1.6);   // 착지
+    }
+    this._wasGrounded = grounded;
   }
 
   // 안전 통과한 분출들에 회피·니어미스·퍼펙트 점수 부여
@@ -197,233 +138,53 @@ export default class GameScene extends Phaser.Scene {
 
   _triggerSlowmo() {
     this._slowmoMs = 200;
+    this.ocean.pulse();
+    this.ocean.splash(this.player.x, this.player.baseY + 8, 1.2);
     this.cameras.main.flash(120, 180, 230, 255, false);
   }
 
-  // ─── Background ─────────────────────────────────────────────────────────────
-  _renderBackground() {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    const H   = LOGICAL_HEIGHT;
-    const ox  = this.worldOffset;
-    const t   = this.bgTheme;
-    const swell = t.swell ?? 1;
-
-    gfx.clear();
-
-    // 스테이지 테마 색상으로 하늘·바다 그라데이션
-    gfx.fillGradientStyle(t.sky[0], t.sky[0], t.sky[1], t.sky[1], 1);
-    gfx.fillRect(0, 0, W, H * 0.24);
-    gfx.fillGradientStyle(t.sky[1], t.sky[1], t.sky[2], t.sky[2], 1);
-    gfx.fillRect(0, H * 0.24, W, H * 0.24);
-
-    gfx.fillGradientStyle(t.sea[0], t.sea[0], t.sea[1], t.sea[1], 1);
-    gfx.fillRect(0, H * 0.44, W, H * 0.28);
-    gfx.fillGradientStyle(t.sea[1], t.sea[1], t.sea[2], t.sea[2], 1);
-    gfx.fillRect(0, H * 0.72, W, H * 0.28);
-
-    if (t.stars) this._drawStars(ox);
-    this._drawClouds(ox * 0.08, t.clouds ?? 0.85);
-    if (t.island) this._drawDistantIslands(ox * 0.05, t.island);
-    if (t.mist) this._drawSeaMist(ox * 0.12, t.mist);
-    if (t.reef) this._drawReefGlints(ox * 0.5, t.reef);
-    if (t.volcanicGlow) this._drawVolcanicGlow(ox);
-    if (t.storm) this._drawStormStreaks(ox);
-
-    this._drawWaveLayer(ox * 0.18, H * 0.40, 16 * swell, t.waveTint, 0.26);
-    this._drawWaveLayer(ox * 0.45, H * 0.53, 26 * swell, t.waveTint, 0.18);
-    this._drawWaveLayer(ox * 0.75, H * 0.66, 38 * swell, 0xffffff, 0.12);
-    this._drawDangerBand(ox);
-    this._drawRideFace(ox);
-    this._drawSparkles(ox, t.sparkle ?? 0.55);
+  _onGoldenFish() {
+    this.ocean.pulse();
+    this.cameras.main.flash(120, 255, 224, 120, false);
   }
 
-  // 라이딩 파도 면 — 서퍼가 타는 표면 곡선
-  _drawRideFace(offset) {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    const H   = LOGICAL_HEIGHT;
-    const baseY = RIDE_BOTTOM_Y + 26;
-
-    gfx.fillStyle(0x0a3b6e, 0.55);
-    gfx.beginPath();
-    gfx.moveTo(0, baseY);
-    for (let x = 0; x <= W; x += 6) {
-      const y = baseY + Math.sin((x + offset) * 0.006) * 14 + Math.sin((x + offset) * 0.013 + 1) * 6;
-      gfx.lineTo(x, y);
-    }
-    gfx.lineTo(W, H); gfx.lineTo(0, H); gfx.closePath(); gfx.fillPath();
-
-    // 흰 포말 라인
-    gfx.lineStyle(4, 0xffffff, 0.35);
-    gfx.beginPath();
-    gfx.moveTo(0, baseY);
-    for (let x = 0; x <= W; x += 6) {
-      const y = baseY + Math.sin((x + offset) * 0.006) * 14 + Math.sin((x + offset) * 0.013 + 1) * 6;
-      x === 0 ? gfx.moveTo(x, y) : gfx.lineTo(x, y);
-    }
-    gfx.strokePath();
+  // ─── 기상 이변 구간 (구간 점수 ×2) ────────────────────────────────────────────
+  // 스테이지 중반에 한 차례 발생. 활성 동안 ScoreManager가 구간 점수를 ×2 적립.
+  _setupWeather() {
+    const dur   = this.obstacleManager._stageDuration;
+    const start = dur * 0.42;
+    const end   = start + Math.min(13_000, dur * 0.22);
+    this._weatherWindow = { start, end };
+    this._weatherActive = false;
   }
 
-  // 위험 구간(거친 바다) 띠 — 화면 하단
-  _drawDangerBand(offset) {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    const top = DANGER_TOP_Y;
+  _updateWeather() {
+    const w      = this._weatherWindow;
+    const active = this.stageTimer >= w.start && this.stageTimer < w.end;
+    if (active === this._weatherActive) return;
 
-    gfx.fillStyle(0x05284a, 0.45);
-    gfx.fillRect(0, top, W, LOGICAL_HEIGHT - top);
-
-    // 거친 포말(whitecaps)
-    gfx.fillStyle(0xffffff, 0.16);
-    for (let i = 0; i < 26; i++) {
-      const x = ((i * 121 + offset * 1.1) % (W + 120)) - 60;
-      const y = top + 20 + ((i * 53) % (LOGICAL_HEIGHT - top - 40));
-      gfx.fillCircle(x, y, 6 + (i % 3) * 4);
+    this._weatherActive = active;
+    this.scoreManager.setWeather(active);
+    if (active) {
+      this.cameras.main.flash(220, 120, 150, 220, false);
+      this.cameras.main.shake(260, 0.005);
+      this.ocean.pulse();
     }
   }
 
-  _drawWaveLayer(offset, baseY, amp, color, alpha) {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    const H   = LOGICAL_HEIGHT;
-
-    gfx.fillStyle(color, alpha);
-    gfx.beginPath();
-    const startY = baseY + Math.sin(offset * 0.0055) * amp + Math.sin(offset * 0.011 + 1.3) * amp * 0.4;
-    gfx.moveTo(0, startY);
-    for (let x = 4; x <= W; x += 4) {
-      const y = baseY
-        + Math.sin((x + offset) * 0.0055) * amp
-        + Math.sin((x + offset) * 0.011 + 1.3) * amp * 0.4
-        + Math.sin((x + offset) * 0.003 + 2.7) * amp * 0.6;
-      gfx.lineTo(x, y);
-    }
-    gfx.lineTo(W, H); gfx.lineTo(0, H); gfx.closePath(); gfx.fillPath();
-  }
-
-  _drawClouds(offset, alpha) {
-    const gfx  = this.bgGfx;
-    const W    = LOGICAL_WIDTH;
-    const TILE = 2400;
-    const defs = [
-      { rx: 200,  y: 72,  rw: 130, rh: 46 }, { rx: 580,  y: 48,  rw:  96, rh: 36 },
-      { rx: 950,  y: 98,  rw: 152, rh: 52 }, { rx: 1380, y: 62,  rw: 115, rh: 42 },
-      { rx: 1820, y: 85,  rw: 140, rh: 50 }, { rx: 2180, y: 55,  rw: 105, rh: 38 },
-    ];
-    gfx.fillStyle(0xffffff, alpha ?? 0.85);
-    const scrolled = offset % TILE;
-    for (const d of defs) {
-      for (let tile = -1; tile <= 2; tile++) {
-        const cx = d.rx - scrolled + tile * TILE;
-        if (cx + d.rw * 1.6 < 0 || cx - d.rw * 1.6 > W) continue;
-        gfx.fillEllipse(cx,                d.y,                d.rw * 2,   d.rh * 2);
-        gfx.fillEllipse(cx - d.rw * 0.55, d.y + d.rh * 0.15, d.rw * 1.3, d.rh * 1.6);
-        gfx.fillEllipse(cx + d.rw * 0.52, d.y + d.rh * 0.12, d.rw * 1.2, d.rh * 1.5);
-      }
-    }
-  }
-
-  _drawStars(offset) {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    const H   = LOGICAL_HEIGHT;
-
-    for (let i = 0; i < 70; i++) {
-      const x = (i * 173 + Math.sin(i) * 41) % W;
-      const y = 24 + ((i * 67) % Math.round(H * 0.36));
-      const alpha = 0.25 + (Math.sin(offset * 0.01 + i * 1.9) + 1) * 0.25;
-      gfx.fillStyle(0xffffff, alpha);
-      gfx.fillCircle(x, y, i % 8 === 0 ? 2.4 : 1.4);
-    }
-  }
-
-  _drawDistantIslands(offset, island) {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    const H   = LOGICAL_HEIGHT;
-    const y   = H * island.y;
-    const scrolled = offset % W;
-
-    gfx.fillStyle(island.color, island.alpha);
-    for (let tile = -1; tile <= 1; tile++) {
-      const x = tile * W - scrolled;
-      gfx.beginPath();
-      gfx.moveTo(x + 40, y + 34);
-      gfx.lineTo(x + 250, y - 36);
-      gfx.lineTo(x + 470, y + 20);
-      gfx.lineTo(x + 670, y - 18);
-      gfx.lineTo(x + 900, y + 40);
-      gfx.lineTo(x + 40, y + 40);
-      gfx.closePath();
-      gfx.fillPath();
-    }
-  }
-
-  _drawSeaMist(offset, mist) {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    const H   = LOGICAL_HEIGHT;
-
-    gfx.fillStyle(mist.color, mist.alpha);
-    for (let i = 0; i < 8; i++) {
-      const x = ((i * 310 - offset) % (W + 260) + W + 260) % (W + 260) - 130;
-      const y = H * 0.43 + Math.sin(offset * 0.01 + i) * 18;
-      gfx.fillEllipse(x, y, 240, 28);
-    }
-  }
-
-  _drawReefGlints(offset, reef) {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    const H   = LOGICAL_HEIGHT;
-
-    gfx.fillStyle(reef.color, reef.alpha);
-    for (let i = 0; i < 10; i++) {
-      const x = ((i * 230 - offset) % W + W) % W;
-      const y = H * 0.74 + Math.sin(i * 1.4) * 90;
-      gfx.fillEllipse(x, y, 150, 18);
-    }
-  }
-
-  _drawVolcanicGlow(offset) {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    const H   = LOGICAL_HEIGHT;
-    const pulse = (Math.sin(offset * 0.012) + 1) * 0.5;
-
-    gfx.fillStyle(0xff6b2f, 0.08 + pulse * 0.05);
-    gfx.fillCircle(W * 0.72, H * 0.36, 210);
-    gfx.fillStyle(0xffb15a, 0.08);
-    gfx.fillCircle(W * 0.72, H * 0.36, 95);
-  }
-
-  _drawStormStreaks(offset) {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    const H   = LOGICAL_HEIGHT;
-
-    gfx.lineStyle(2, 0xd9e8f4, 0.16);
-    for (let i = 0; i < 28; i++) {
-      const x = ((i * 91 - offset * 1.15) % (W + 140) + W + 140) % (W + 140) - 70;
-      const y = (i * 53 + offset * 0.08) % H;
-      gfx.beginPath();
-      gfx.moveTo(x, y);
-      gfx.lineTo(x - 34, y + 74);
-      gfx.strokePath();
-    }
-  }
-
-  _drawSparkles(offset, alphaScale) {
-    const gfx = this.bgGfx;
-    const W   = LOGICAL_WIDTH;
-    for (let i = 0; i < 22; i++) {
-      const x     = ((i * 97 + offset * 0.85) % W + W) % W;
-      const y     = RIDE_TOP_Y + ((i * 71) % (RIDE_BOTTOM_Y - RIDE_TOP_Y));
-      const alpha = (Math.sin(offset * 0.04 + i * 1.7) + 1) / 2 * (alphaScale ?? 0.4);
-      gfx.fillStyle(0xffffff, alpha);
-      gfx.fillCircle(x, y, 1.5 + Math.sin(i * 0.9) * 1);
-    }
+  // ─── Background (OceanBackground 위임) ──────────────────────────────────────
+  _renderBackground(dt) {
+    const scrollSpeed = this.obstacleManager.scrollSpeed;
+    this.ocean.update({
+      dt,
+      scroll:    this.worldOffset,
+      speedNorm: scrollSpeed / 540,
+      combo:     this.scoreManager.combo,
+      danger:    this.player.inDanger || this._weatherActive,
+      jumping:   !this.player.isGrounded,
+      playerX:   this.player.x,
+      playerY:   this.player.baseY,
+    });
   }
 
   // ─── 위험 구간 연출 ───────────────────────────────────────────────────────────
@@ -524,12 +285,14 @@ export default class GameScene extends Phaser.Scene {
   _gameOver(hitObstacle, cause = 'collision') {
     this._active = false;
     const summary = this.scoreManager.getSummary();
+    const prevHigh = this.storage.getHighScore(this.stageIndex + 1);
     this.storage.recordStageAttempt(this.stageIndex + 1, summary.total);
     this.scene.stop('HUDScene');
     this.scene.start('ResultScene', {
       cleared:     false,
       stageIndex:  this.stageIndex,
       summary,
+      prevHigh,
       hitObstacle,
       cause,
       timeRemain:  Math.max(0, this.obstacleManager._stageDuration - this.stageTimer),
@@ -543,6 +306,7 @@ export default class GameScene extends Phaser.Scene {
     const stageId = this.stageIndex + 1;
     const summary = this.scoreManager.getSummary();
     const stars   = this._calcStars(stageId, summary);
+    const prevHigh = this.storage.getHighScore(stageId);
     this.storage.updateStageResult(stageId, summary.total, stars);
 
     this.scene.stop('HUDScene');
@@ -550,6 +314,7 @@ export default class GameScene extends Phaser.Scene {
       cleared:    true,
       stageIndex: this.stageIndex,
       summary,
+      prevHigh,
       stars,
       storage:    this.storage,
     });
