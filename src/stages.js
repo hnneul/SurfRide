@@ -1,4 +1,7 @@
+// @ts-check
 import { PATTERNS } from './spawnPatterns.js';
+
+/** @typedef {import('./types.js').StageData} StageData */
 
 // ─── 스테이지별 난이도 설정 (JSON 분리 데이터) ────────────────────────────────
 // allowedTypes: 해당 스테이지에서 등장 가능한 장애물 종류
@@ -33,6 +36,7 @@ export const STAGE_CONFIG = Object.freeze({
 //   events: EventSpec[],       // 스테이지 스크립트 — spawnPatterns.js 참조
 // }
 
+/** @type {StageData[]} */
 export const STAGES = [
   // ── Stage 1: 제주 앞바다 / 출발 ─────────────────────────────────────────
   {

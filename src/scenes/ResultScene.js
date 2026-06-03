@@ -4,9 +4,12 @@ import { ScoreEvent } from '../score.js';
 import { OBSTACLE_META } from '../obstacle.js';
 import { STAGES } from '../stages.js';
 
+/** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
+
 export default class ResultScene extends Phaser.Scene {
   constructor() { super({ key: 'ResultScene' }); }
 
+  /** @param {ResultScenePayload} data */
   init(data) {
     this.cleared     = data.cleared;
     this.stageIndex  = data.stageIndex;

@@ -1,3 +1,6 @@
+/** @typedef {import('./types.js').SaveData} SaveData */
+/** @typedef {import('./types.js').GameSettings} GameSettings */
+
 const STORAGE_KEY = 'surfride_save';
 const MAX_STAGE_ID = 10;
 const MAX_STAGE_INDEX = MAX_STAGE_ID - 1;
@@ -18,6 +21,7 @@ const MAX_STAGE_INDEX = MAX_STAGE_ID - 1;
 //   lastPlayedTime:    number,         // Date.now()
 // }
 
+/** @type {SaveData} */
 const DEFAULT_SAVE = {
   currentStage: 0,
   unlockedStages: [
@@ -36,14 +40,17 @@ const DEFAULT_SAVE = {
 // ─── StorageManager ──────────────────────────────────────────────────────────
 export class StorageManager {
   constructor() {
+    /** @type {SaveData} */
     this._data = this.load() ?? this._defaultData();
   }
 
+  /** @returns {SaveData} */
   _defaultData() {
     return JSON.parse(JSON.stringify(DEFAULT_SAVE));
   }
 
   // 로컬 스토리지에서 로드. 손상 시 초기값 반환
+  /** @returns {SaveData|null} */
   load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -142,12 +149,14 @@ export class StorageManager {
     return this._data.unlockedStages.find(s => s.id === stageId)?.highScore ?? 0;
   }
 
+  /** @returns {GameSettings} */
   get settings() { return this._data.settings; }
   get tutorialCompleted() { return this._data.tutorialCompleted; }
   get currentStage() { return this._data.currentStage; }
   get globalHighScore() { return this._data.globalHighScore; }
 
   // 설정 부분 업데이트
+  /** @param {Partial<GameSettings>} partial */
   updateSettings(partial) {
     if (!partial || typeof partial !== 'object') return;
     Object.assign(this._data.settings, partial);

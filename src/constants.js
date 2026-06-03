@@ -1,3 +1,5 @@
+/** @typedef {import('./types.js').SpawnEvent} SpawnEvent */
+
 export const LOGICAL_WIDTH  = 1920;
 export const LOGICAL_HEIGHT = 1080;
 
@@ -74,6 +76,7 @@ export const Lane = Object.freeze({ TOP: 0, MID: 1, BOT: 2 });
 const LANE_ANCHOR_FRAC = Object.freeze({ 0: 0.14, 1: 0.50, 2: 0.84 });
 
 // event.yFrac(0~1)가 있으면 우선, 없으면 lane 앵커 사용
+/** @param {SpawnEvent} event @returns {number} */
 export function eventRideY(event) {
   const frac = Number.isFinite(event.yFrac)
     ? event.yFrac

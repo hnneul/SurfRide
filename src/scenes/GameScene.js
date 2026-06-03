@@ -8,6 +8,9 @@ import { STAGES } from '../stages.js';
 import { OceanBackground } from '../oceanBackground.js';
 import { GoldenFishManager } from '../goldenFish.js';
 
+/** @typedef {import('../types.js').GameSceneInit} GameSceneInit */
+/** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
+
 const TUTORIAL_STEPS = [
   { until:  3400, text: '↑ ↓ 방향키로 파도를 타고 오르내려요' },
   { until:  7000, text: '← → 로 균형을 잡으세요 — 무너지면 와이프아웃!' },
@@ -19,6 +22,7 @@ const TUTORIAL_STEPS = [
 export default class GameScene extends Phaser.Scene {
   constructor() { super({ key: 'GameScene' }); }
 
+  /** @param {GameSceneInit} data */
   init(data) {
     this.stageIndex = this._normalizeStageIndex(data.stageIndex);
   }
@@ -288,7 +292,8 @@ export default class GameScene extends Phaser.Scene {
     const prevHigh = this.storage.getHighScore(this.stageIndex + 1);
     this.storage.recordStageAttempt(this.stageIndex + 1, summary.total);
     this.scene.stop('HUDScene');
-    this.scene.start('ResultScene', {
+    /** @type {ResultScenePayload} */
+    const payload = {
       cleared:     false,
       stageIndex:  this.stageIndex,
       summary,
@@ -297,7 +302,8 @@ export default class GameScene extends Phaser.Scene {
       cause,
       timeRemain:  Math.max(0, this.obstacleManager._stageDuration - this.stageTimer),
       storage:     this.storage,
-    });
+    };
+    this.scene.start('ResultScene', payload);
   }
 
   _stageClear() {
@@ -310,14 +316,16 @@ export default class GameScene extends Phaser.Scene {
     this.storage.updateStageResult(stageId, summary.total, stars);
 
     this.scene.stop('HUDScene');
-    this.scene.start('ResultScene', {
+    /** @type {ResultScenePayload} */
+    const payload = {
       cleared:    true,
       stageIndex: this.stageIndex,
       summary,
       prevHigh,
       stars,
       storage:    this.storage,
-    });
+    };
+    this.scene.start('ResultScene', payload);
   }
 
   _calcStars(stageId, summary) {

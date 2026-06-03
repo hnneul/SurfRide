@@ -1,5 +1,7 @@
 import { zoneMultiplierForY } from './constants.js';
 
+/** @typedef {import('./types.js').ScoreSummary} ScoreSummary */
+
 export const SCORE = Object.freeze({
   SURVIVAL_PER_SEC:  10,
   DODGE:            100,
@@ -135,6 +137,7 @@ export class ScoreManager {
     }
   }
 
+  /** @returns {ScoreSummary} */
   getSummary() {
     return {
       total:              this.total,

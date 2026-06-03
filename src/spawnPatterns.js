@@ -1,5 +1,8 @@
+// @ts-check
 import { Lane } from './player.js';
 import { ObstacleType } from './obstacle.js';
+
+/** @typedef {import('./types.js').SpawnEvent} SpawnEvent */
 
 // t: 신호 표시 시각(ms) | telegraphMs >= 500 강제 (ObstacleManager에서도 2차 보장)
 // 가짜 신호 연속 2회 이상 금지
@@ -14,7 +17,10 @@ const T = Lane.TOP;
 const M = Lane.MID;
 const B = Lane.BOT;
 
-export const PATTERNS = Object.freeze({
+// 데이터를 typed const에 직접 할당해야 TS가 각 이벤트의 오타·누락을 검사한다
+// (Object.freeze로 감싸면 검사가 약해지므로 freeze는 export 시점에 적용).
+/** @type {Record<string, SpawnEvent[]>} */
+const PATTERN_DATA = {
 
   // ── Stage 1: 날치만 — 20이벤트 / 20분, telegraphMs 1200→900 ─────────────
   STAGE_1: [
@@ -388,4 +394,6 @@ export const PATTERNS = Object.freeze({
     { t: 77_600, lane: M, obstacleType: OC, telegraphMs:  500 },
     { t: 79_400, lane: T, obstacleType: LG, telegraphMs:  500, isFake: true },
   ],
-});
+};
+
+export const PATTERNS = Object.freeze(PATTERN_DATA);
