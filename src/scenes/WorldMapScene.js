@@ -5,6 +5,7 @@ import { STAGES } from '../stages.js';
 
 const W = LOGICAL_WIDTH;
 const H = LOGICAL_HEIGHT;
+const UI_FONT = 'Pretendard Variable, Pretendard, Apple SD Gothic Neo, Malgun Gothic, system-ui, sans-serif';
 
 const PALETTE = Object.freeze({
   ink: 0x07263e,
@@ -67,7 +68,7 @@ export default class WorldMapScene extends Phaser.Scene {
       console.error('WorldMapScene failed to render', error);
       this.add.text(W / 2, H / 2, '세계지도를 불러오지 못했습니다', {
         fontSize: '42px',
-        fontFamily: 'sans-serif',
+        fontFamily: UI_FONT,
         color: '#ffffff',
       }).setOrigin(0.5);
     }
@@ -120,10 +121,10 @@ export default class WorldMapScene extends Phaser.Scene {
     bg.fillGradientStyle(PALETTE.ocean, PALETTE.ocean, PALETTE.deep, PALETTE.deep, 1);
     bg.fillRect(0, H * 0.58, W, H * 0.42);
 
-    bg.fillStyle(PALETTE.sun, 0.95);
-    bg.fillCircle(290, 150, 74);
-    bg.fillStyle(PALETTE.sun, 0.22);
-    bg.fillCircle(290, 150, 126);
+    bg.fillStyle(PALETTE.sun, 0.92);
+    bg.fillCircle(250, 222, 68);
+    bg.fillStyle(PALETTE.sun, 0.18);
+    bg.fillCircle(250, 222, 116);
 
     bg.fillStyle(0xffffff, 0.72);
     this._cloud(bg, 1270, 130, 1.05);
@@ -167,16 +168,16 @@ export default class WorldMapScene extends Phaser.Scene {
   _drawHeader() {
     this.add.text(80, 54, '세계지도', {
       fontSize: '58px',
-      fontFamily: 'sans-serif',
+      fontFamily: UI_FONT,
       fontStyle: 'bold',
       color: '#ffffff',
     }).setOrigin(0, 0.5).setShadow(0, 8, 'rgba(4,40,74,0.28)', 18);
 
     this.add.text(82, 102, '제주에서 태평양 끝까지, 파도 위 항로를 따라갑니다', {
       fontSize: '24px',
-      fontFamily: 'sans-serif',
+      fontFamily: UI_FONT,
       color: '#e8f5ff',
-    });
+    }).setShadow(0, 3, 'rgba(4,40,74,0.34)', 8);
 
     const clearedCnt = this._unlocked.filter(s => s.cleared).length;
     const totalStars = this._unlocked.reduce((a, s) => a + (s.stars ?? 0), 0);
@@ -187,6 +188,7 @@ export default class WorldMapScene extends Phaser.Scene {
   }
 
   _pill(cx, cy, w, h, label, fill, color, alpha = 0.94) {
+    this._raisedShadow(cx, cy + 5, w, h, 8, 0.18);
     const g = this.add.graphics();
     g.fillStyle(fill, alpha);
     g.lineStyle(1.5, 0xffffff, 0.55);
@@ -194,7 +196,7 @@ export default class WorldMapScene extends Phaser.Scene {
     g.strokeRoundedRect(cx - w / 2, cy - h / 2, w, h, 8);
     this.add.text(cx, cy + 1, label, {
       fontSize: '18px',
-      fontFamily: 'sans-serif',
+      fontFamily: UI_FONT,
       fontStyle: 'bold',
       color,
     }).setOrigin(0.5);
@@ -277,13 +279,13 @@ export default class WorldMapScene extends Phaser.Scene {
       const body = this.add.graphics();
       const label = this.add.text(0, 2, String(node.id), {
         fontSize: '28px',
-        fontFamily: 'sans-serif',
+        fontFamily: UI_FONT,
         fontStyle: 'bold',
         color: '#07263e',
       }).setOrigin(0.5);
       const name = this.add.text(0, 66, STAGES[node.id - 1].name, {
         fontSize: '19px',
-        fontFamily: 'sans-serif',
+        fontFamily: UI_FONT,
         fontStyle: 'bold',
         color: '#ffffff',
         align: 'center',
@@ -291,7 +293,7 @@ export default class WorldMapScene extends Phaser.Scene {
       }).setOrigin(0.5, 0).setShadow(0, 3, 'rgba(4,40,74,0.36)', 8);
       const stars = this.add.text(0, 98, '', {
         fontSize: '18px',
-        fontFamily: 'sans-serif',
+        fontFamily: UI_FONT,
         color: '#ffd66b',
       }).setOrigin(0.5, 0).setShadow(0, 2, 'rgba(4,40,74,0.35)', 6);
       container.add([ring, body, label, name, stars]);
@@ -326,6 +328,9 @@ export default class WorldMapScene extends Phaser.Scene {
       view.ring.clear();
       view.body.clear();
       view.container.setAlpha(locked ? 0.48 : 1);
+
+      view.body.fillStyle(0x043b5e, locked ? 0.1 : 0.24);
+      view.body.fillCircle(8, 13, selected ? 48 : 43);
 
       if (selected) {
         view.ring.fillStyle(PALETTE.sun, 0.22);
@@ -386,7 +391,7 @@ export default class WorldMapScene extends Phaser.Scene {
       : `${nextId}해역이 다음 목적지입니다. 노드를 눌러 브리핑을 확인하고 출발하세요.`;
     this.add.text(W / 2, 870, message, {
       fontSize: '24px',
-      fontFamily: 'sans-serif',
+      fontFamily: UI_FONT,
       fontStyle: 'bold',
       color: '#e8f5ff',
     }).setOrigin(0.5);
@@ -411,32 +416,43 @@ export default class WorldMapScene extends Phaser.Scene {
     const panelW = W - 144;
     const panelH = 128;
 
+    const panelShadow = add(this.add.graphics());
+    panelShadow.fillStyle(0x043b5e, 0.24);
+    panelShadow.fillRoundedRect(panelX + 8, panelY + 14, panelW, panelH, 8);
+
     const panel = add(this.add.graphics());
     panel.fillStyle(PALETTE.foam, 0.86);
     panel.lineStyle(2, 0xffffff, 0.72);
     panel.fillRoundedRect(panelX, panelY, panelW, panelH, 8);
     panel.strokeRoundedRect(panelX, panelY, panelW, panelH, 8);
+    panel.fillStyle(0xffffff, 0.28);
+    panel.fillRoundedRect(panelX + 14, panelY + 10, panelW - 28, 10, 5);
 
     const badgeColor = cleared ? 0x2fa66d : isNext ? PALETTE.coral : PALETTE.ocean;
+    const badgeShadow = add(this.add.graphics());
+    badgeShadow.fillStyle(0x043b5e, 0.2);
+    badgeShadow.fillRoundedRect(panelX + 34, panelY + 34, 124, 76, 8);
     const badge = add(this.add.graphics());
     badge.fillStyle(badgeColor, 0.96);
     badge.fillRoundedRect(panelX + 28, panelY + 26, 124, 76, 8);
+    badge.fillStyle(0xffffff, 0.22);
+    badge.fillRoundedRect(panelX + 38, panelY + 34, 104, 8, 4);
     add(this.add.text(panelX + 90, panelY + 64, `${stage.id}구역`, {
       fontSize: '28px',
-      fontFamily: 'sans-serif',
+      fontFamily: UI_FONT,
       fontStyle: 'bold',
       color: '#ffffff',
     }).setOrigin(0.5));
 
     add(this.add.text(panelX + 182, panelY + 26, stage.name, {
       fontSize: '32px',
-      fontFamily: 'sans-serif',
+      fontFamily: UI_FONT,
       fontStyle: 'bold',
       color: '#07263e',
     }));
     add(this.add.text(panelX + 182, panelY + 70, MAP_TEXTS[stage.id], {
       fontSize: '21px',
-      fontFamily: 'sans-serif',
+      fontFamily: UI_FONT,
       color: '#536f83',
     }));
 
@@ -451,7 +467,7 @@ export default class WorldMapScene extends Phaser.Scene {
       const x = panelX + 720 + i * 250;
       add(this.add.text(x, panelY + 42, text, {
         fontSize: i === 0 ? '23px' : '20px',
-        fontFamily: 'sans-serif',
+        fontFamily: UI_FONT,
         fontStyle: i === 0 ? 'bold' : 'normal',
         color: i === 0 ? '#07263e' : '#536f83',
       }).setOrigin(0.5, 0));
@@ -477,6 +493,11 @@ export default class WorldMapScene extends Phaser.Scene {
 
   _button(cx, cy, w, h, label, primary, cb) {
     const objects = [];
+    const shadow = this.add.graphics();
+    objects.push(shadow);
+    shadow.fillStyle(primary ? 0x7e2d45 : 0x043b5e, primary ? 0.34 : 0.22);
+    shadow.fillRoundedRect(cx - w / 2, cy - h / 2 + 10, w, h, 8);
+
     const gfx = this.add.graphics();
     objects.push(gfx);
     if (primary) {
@@ -489,10 +510,12 @@ export default class WorldMapScene extends Phaser.Scene {
       gfx.lineStyle(2, 0xffffff, 0.42);
     }
     gfx.strokeRoundedRect(cx - w / 2, cy - h / 2, w, h, 8);
+    gfx.fillStyle(0xffffff, primary ? 0.28 : 0.16);
+    gfx.fillRoundedRect(cx - w / 2 + 12, cy - h / 2 + 8, w - 24, 8, 4);
 
     objects.push(this.add.text(cx, cy + 1, label, {
       fontSize: primary ? '27px' : '24px',
-      fontFamily: 'sans-serif',
+      fontFamily: UI_FONT,
       fontStyle: 'bold',
       color: '#ffffff',
     }).setOrigin(0.5).setShadow(0, 3, 'rgba(4,40,74,0.24)', 8));
@@ -501,5 +524,12 @@ export default class WorldMapScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on('pointerdown', cb));
     return objects;
+  }
+
+  _raisedShadow(cx, cy, w, h, radius, alpha) {
+    const g = this.add.graphics();
+    g.fillStyle(0x043b5e, alpha);
+    g.fillRoundedRect(cx - w / 2, cy - h / 2 + 6, w, h, radius);
+    return g;
   }
 }
