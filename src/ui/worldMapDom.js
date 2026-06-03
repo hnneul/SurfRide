@@ -2,16 +2,16 @@
 // mountWorldMap(...) 는 { destroy } 를 반환한다.
 
 const MAP_NODES = [
-  { id: 1, x: 7, y: 64 },
-  { id: 2, x: 18, y: 52 },
-  { id: 3, x: 29, y: 42 },
-  { id: 4, x: 41, y: 33 },
-  { id: 5, x: 53, y: 27 },
-  { id: 6, x: 64, y: 24 },
-  { id: 7, x: 74, y: 28 },
-  { id: 8, x: 83, y: 39 },
-  { id: 9, x: 90, y: 53 },
-  { id: 10, x: 94, y: 70 },
+  { id: 1,  x: 7,  y: 74 },
+  { id: 2,  x: 18, y: 62 },
+  { id: 3,  x: 28, y: 67 },
+  { id: 4,  x: 39, y: 55 },
+  { id: 5,  x: 49, y: 60 },
+  { id: 6,  x: 59, y: 47 },
+  { id: 7,  x: 69, y: 52 },
+  { id: 8,  x: 79, y: 39 },
+  { id: 9,  x: 87, y: 44 },
+  { id: 10, x: 93, y: 31 },
 ];
 
 const MAP_TEXTS = {
@@ -142,10 +142,25 @@ function statTemplate(label, value) {
     </div>`;
 }
 
+function smoothCurvePath(pts, tension = 0.18) {
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const cp1x = (p1.x + tension * (p2.x - p0.x)).toFixed(1);
+    const cp1y = (p1.y + tension * (p2.y - p0.y)).toFixed(1);
+    const cp2x = (p2.x - tension * (p3.x - p1.x)).toFixed(1);
+    const cp2y = (p2.y - tension * (p3.y - p1.y)).toFixed(1);
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
 function routeTemplate() {
-  const routePath = `M ${MAP_NODES
-    .map(node => `${node.x * 10} ${node.y * 3.6}`)
-    .join(' L ')}`;
+  const pts = MAP_NODES.map(node => ({ x: node.x * 10, y: node.y * 3.6 }));
+  const routePath = smoothCurvePath(pts);
 
   return `
     <svg class="world-map-route" viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
@@ -189,9 +204,14 @@ function summaryTemplate({ stages, state }) {
   const nextId = nextStageId(state.unlocked, stages);
   const message = nextId === null
     ? '모든 항로를 정복했습니다. 원하는 해역에서 기록을 갱신할 수 있습니다.'
-    : `${nextId}구역 ${stages[nextId - 1].name}이 다음 목적지입니다.`;
+    : `${nextId}구역 ${stages[nextId - 1].name}${josa(stages[nextId - 1].name, '이', '가')} 다음 목적지입니다.`;
 
   return `<p>${escapeHtml(message)}</p>`;
+}
+
+function josa(word, consonant, vowel) {
+  const last = word.charCodeAt(word.length - 1) - 0xAC00;
+  return last >= 0 && last % 28 !== 0 ? consonant : vowel;
 }
 
 function panelTemplate({ stages, state }) {
@@ -225,7 +245,7 @@ function panelTemplate({ stages, state }) {
 
     <nav class="world-panel__actions">
       <button class="btn btn--ghost world-panel__back" data-act="back">메인으로</button>
-      <button class="btn btn--primary world-panel__challenge" data-act="challenge" ${playable ? '' : 'disabled'}>
+      <button class="btn ${cleared ? 'btn--success' : 'btn--primary'} world-panel__challenge" data-act="challenge" ${playable ? '' : 'disabled'}>
         ${stage.id}구역 도전하기
       </button>
     </nav>`;
