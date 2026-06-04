@@ -8,6 +8,7 @@ import { STAGES } from '../stages.js';
 import { OceanBackground } from '../oceanBackground.js';
 import { GoldenFishManager } from '../goldenFish.js';
 import { ThreeLayer } from '../three/ThreeLayer.js';
+import { mountHud } from '../ui/hudDom.js';
 
 /** @typedef {import('../types.js').GameSceneInit} GameSceneInit */
 /** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
@@ -60,17 +61,27 @@ export default class GameScene extends Phaser.Scene {
 
     this.scene.launch('HUDScene', { gameScene: this });
 
-    // ─── 3D 렌더 레이어 (Phaser 위 Three.js 하이브리드) ───────────────────────
-    // 1단계 스파이크: 통합 검증용 회전 큐브. 게임 루프는 Phaser가 주도하고
-    // update()에서 three.render(dt)를 호출한다. 씬 종료 시 _teardownThree로 정리.
-    this.three = new ThreeLayer(this.stage.theme);
+    // ─── 렌더 레이어를 Three.js로 전환 ──────────────────────────────────────────
+    // 이 단계: 씬·카메라·조명만 세팅. Phaser 2D 캔버스를 숨기고 그 위에 Three 캔버스를 올린다.
+    // 게임 로직·입력·HUD 코드는 그대로 — update()가 매 프레임 three.render()로 렌더만 위임.
+    this.three = new ThreeLayer();
+    this._phaserCanvas = this.sys.game.canvas;
+    this._phaserCanvas.style.display = 'none';
+    this.hud = mountHud();   // 인게임 HUD DOM 오버레이 (HUDScene 로직은 그대로, 표시만 보강)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._teardownThree, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this._teardownThree, this);
   }
 
+  // 씬 종료 시 Three 레이어·HUD 정리 + Phaser 캔버스 복구 (메뉴·결과 화면은 다시 Phaser가 렌더)
   _teardownThree() {
     this.three?.destroy();
     this.three = null;
+    this.hud?.destroy();
+    this.hud = null;
+    if (this._phaserCanvas) {
+      this._phaserCanvas.style.display = '';
+      this._phaserCanvas = null;
+    }
   }
 
   update(_time, delta) {
@@ -116,7 +127,25 @@ export default class GameScene extends Phaser.Scene {
 
     this._renderBackground(dt);
     this._renderDanger();
-    this.three?.render(dt, { playerX: this.player.x, playerY: this.player.baseY });   // 좌표 브리지로 마커 추종
+    // 렌더만 Three에 위임 — 서퍼·장애물은 게임 좌표(x·baseY·jumpOffset·targetY)를 그대로 추종.
+    // 충돌 판정은 obstacleManager의 2D AABB(checkCollision)가 담당 — 여기선 안 건드림.
+    this.three?.render(dt, {
+      player:    this.player,
+      cursors:   this.cursors,
+      obstacles: this.obstacleManager.obstacles,
+      signals:   this.obstacleManager.signals,
+    });
+    this.hud?.update({
+      health:       this.player.health,
+      maxHealth:    this.player.maxHealth,
+      invulnerable: this.player.invulnerable,
+      tilt:         this.player.tilt,
+      score:        this.scoreManager.total,
+      combo:        this.scoreManager.combo,
+      remainSec:    Math.max(0, (this.obstacleManager._stageDuration - this.stageTimer) / 1000),
+      stageId:      this.stage.id,
+      stageName:    this.stage.name,
+    });
   }
 
   // 피격: 하트 차감·콤보 리셋·연출. 사망(하트 0)이면 true 반환 → 게임오버.
