@@ -63,7 +63,7 @@ export default class GameScene extends Phaser.Scene {
     // ─── 3D 렌더 레이어 (Phaser 위 Three.js 하이브리드) ───────────────────────
     // 1단계 스파이크: 통합 검증용 회전 큐브. 게임 루프는 Phaser가 주도하고
     // update()에서 three.render(dt)를 호출한다. 씬 종료 시 _teardownThree로 정리.
-    this.three = new ThreeLayer();
+    this.three = new ThreeLayer(this.stage.theme);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._teardownThree, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this._teardownThree, this);
   }
