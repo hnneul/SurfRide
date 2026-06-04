@@ -1,11 +1,15 @@
 import * as THREE from 'three';
+import { LOGICAL_WIDTH, LOGICAL_HEIGHT } from '../constants.js';
 
-// Phaser 캔버스 위에 겹치는 투명 Three.js 레이어.
-// 게임 루프는 Phaser가 주도한다 — GameScene.update()에서 render(dt)를 호출하고,
-// 씬 종료 시 destroy()로 정리한다. (캔버스는 2개, 게임 루프는 1개)
+// 게임 픽셀 좌표 → 3D 월드 유닛 스케일 (1 unit = PX_PER_UNIT px)
+const PX_PER_UNIT = 90;
+
+// Phaser 캔버스 위에 겹치는 투명 Three.js 레이어 (렌더만 3D, 게임 루프는 Phaser가 주도).
 //
-// 1단계 스파이크: "Phaser + Three.js 하이브리드가 실제로 된다"를 검증하기 위한
-// 회전 큐브 1개만 올린다. 좌표 정합/실제 게임 오브젝트는 이후 단계에서.
+// 2단계 — 좌표 브리지 + 비스듬 2.5D 카메라:
+//  - gameToWorld(): 게임 화면 픽셀(0~1920, 0~1080) → 3D 월드 좌표(z=0 평면) 변환
+//  - 기준 평면(와이어프레임): 파도면이 놓일 자리 → 3단계에서 바다 메시로 교체
+//  - 마커(박스): 서퍼 위치(player.baseY) 추종 → 4단계에서 실제 서퍼 메시로 교체
 export class ThreeLayer {
   constructor(parentId = 'game-container') {
     const parent = document.getElementById(parentId);
@@ -28,23 +32,48 @@ export class ThreeLayer {
     this._el = el;
 
     this.scene  = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(55, w / h, 0.1, 1000);
-    this.camera.position.set(0, 0, 6);
+    this.camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 1000);
+    // 살짝 위에서 비스듬히 내려다보는 2.5D 시점
+    this.camera.position.set(0, 6, 14);
+    this.camera.lookAt(0, -0.5, 0);
 
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.65));
     const key = new THREE.DirectionalLight(0xffffff, 1.1);
-    key.position.set(4, 6, 5);
+    key.position.set(4, 8, 6);
     this.scene.add(key);
 
-    // 스파이크용 회전 큐브 (서프라이드 하늘색)
-    this.cube = new THREE.Mesh(
-      new THREE.BoxGeometry(2, 2, 2),
-      new THREE.MeshStandardMaterial({ color: 0x4fc3f7, metalness: 0.1, roughness: 0.4 }),
+    this._buildReferencePlane();
+
+    // 서퍼 자리 마커 (4단계에서 실제 서퍼 메시로 교체)
+    this.marker = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, 0.7, 0.7),
+      new THREE.MeshStandardMaterial({ color: 0xffb74d, metalness: 0.1, roughness: 0.5 }),
     );
-    this.scene.add(this.cube);
+    this.scene.add(this.marker);
 
     this._onResize = () => this.resize();
     window.addEventListener('resize', this._onResize);
+  }
+
+  // 파도면이 놓일 기준 평면 (3단계에서 바다 메시로 교체)
+  _buildReferencePlane() {
+    const wU = LOGICAL_WIDTH  / PX_PER_UNIT;
+    const hU = LOGICAL_HEIGHT / PX_PER_UNIT;
+    const geo = new THREE.PlaneGeometry(wU, hU, 24, 14);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x3a7ca5, wireframe: true, transparent: true, opacity: 0.45,
+    });
+    this.plane = new THREE.Mesh(geo, mat);   // PlaneGeometry 기본 XY 평면(z=0)
+    this.scene.add(this.plane);
+  }
+
+  // 게임 화면 픽셀 → 3D 월드 좌표 (좌표 브리지의 핵심)
+  gameToWorld(gx, gy, gz = 0) {
+    return new THREE.Vector3(
+       (gx - LOGICAL_WIDTH  / 2) / PX_PER_UNIT,
+      -(gy - LOGICAL_HEIGHT / 2) / PX_PER_UNIT,   // 화면 y-down → 월드 y-up
+       gz,
+    );
   }
 
   resize() {
@@ -55,18 +84,22 @@ export class ThreeLayer {
     this.camera.updateProjectionMatrix();
   }
 
-  // dtMs: Phaser가 넘겨주는 프레임 델타(슬로우모션 등 게임 시간 그대로 공유)
-  render(dtMs) {
-    const dt = dtMs / 1000;
-    this.cube.rotation.x += dt * 0.8;
-    this.cube.rotation.y += dt * 1.2;
+  // dtMs: Phaser 프레임 델타 | state: { playerX, playerY } 게임 픽셀 좌표
+  render(dtMs, state) {
+    if (state) {
+      const p = this.gameToWorld(state.playerX, state.playerY, 0.5);
+      this.marker.position.copy(p);
+      this.marker.rotation.y += dtMs / 1000 * 1.2;
+    }
     this.renderer.render(this.scene, this.camera);
   }
 
   destroy() {
     window.removeEventListener('resize', this._onResize);
-    this.cube.geometry.dispose();
-    this.cube.material.dispose();
+    this.plane.geometry.dispose();
+    this.plane.material.dispose();
+    this.marker.geometry.dispose();
+    this.marker.material.dispose();
     this.renderer.dispose();
     this._el.remove();
   }

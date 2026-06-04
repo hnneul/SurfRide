@@ -116,7 +116,7 @@ export default class GameScene extends Phaser.Scene {
 
     this._renderBackground(dt);
     this._renderDanger();
-    this.three?.render(dt);   // Three.js 하이브리드 레이어 (Phaser 루프가 주도)
+    this.three?.render(dt, { playerX: this.player.x, playerY: this.player.baseY });   // 좌표 브리지로 마커 추종
   }
 
   // 피격: 하트 차감·콤보 리셋·연출. 사망(하트 0)이면 true 반환 → 게임오버.
