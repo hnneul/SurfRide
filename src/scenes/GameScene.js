@@ -7,6 +7,7 @@ import { StorageManager } from '../storage.js';
 import { STAGES } from '../stages.js';
 import { OceanBackground } from '../oceanBackground.js';
 import { GoldenFishManager } from '../goldenFish.js';
+import { ThreeLayer } from '../three/ThreeLayer.js';
 
 /** @typedef {import('../types.js').GameSceneInit} GameSceneInit */
 /** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
@@ -58,6 +59,18 @@ export default class GameScene extends Phaser.Scene {
     this._setupDangerText();
 
     this.scene.launch('HUDScene', { gameScene: this });
+
+    // ─── 3D 렌더 레이어 (Phaser 위 Three.js 하이브리드) ───────────────────────
+    // 1단계 스파이크: 통합 검증용 회전 큐브. 게임 루프는 Phaser가 주도하고
+    // update()에서 three.render(dt)를 호출한다. 씬 종료 시 _teardownThree로 정리.
+    this.three = new ThreeLayer();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._teardownThree, this);
+    this.events.once(Phaser.Scenes.Events.DESTROY, this._teardownThree, this);
+  }
+
+  _teardownThree() {
+    this.three?.destroy();
+    this.three = null;
   }
 
   update(_time, delta) {
@@ -103,6 +116,7 @@ export default class GameScene extends Phaser.Scene {
 
     this._renderBackground(dt);
     this._renderDanger();
+    this.three?.render(dt);   // Three.js 하이브리드 레이어 (Phaser 루프가 주도)
   }
 
   // 피격: 하트 차감·콤보 리셋·연출. 사망(하트 0)이면 true 반환 → 게임오버.
