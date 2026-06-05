@@ -5,9 +5,8 @@ const STORAGE_KEY = 'surfride_save';
 const MAX_STAGE_ID = 10;
 const MAX_STAGE_INDEX = MAX_STAGE_ID - 1;
 
-// 개발/데모용: 모든 해역을 처음부터 해금(로컬 진행 기록은 그대로 유지·병합).
-// 정상 진행 잠금으로 되돌리려면 false. (스테이지별 테마 확인 등 테스트 편의)
-const DEV_UNLOCK_ALL = true;
+// 개발 중에만 모든 해역 해금(로컬 진행 기록은 유지·병합). vite dev=true / build=false 자동.
+const DEV_UNLOCK_ALL = import.meta.env.DEV;
 
 // ─── 저장 데이터 스키마 ──────────────────────────────────────────────────────
 // {
