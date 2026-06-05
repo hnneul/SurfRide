@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LOGICAL_WIDTH, LOGICAL_HEIGHT, RIDE_TOP_Y, RIDE_BOTTOM_Y } from '../constants.js';
+import { BACKGROUND_THEMES } from '../oceanBackground.js';
 
 // 게임 픽셀 좌표 → 3D 월드 유닛 스케일 (1 unit = PX_PER_UNIT px).
 const PX_PER_UNIT = 90;
@@ -16,10 +17,13 @@ const RIDE_Z_NEAR = 11;    // baseY=RIDE_BOTTOM_Y(거친 바다·위험·아래)
 
 // 파도 3겹 레이어 (원경 → 근경). y는 스펙엔 없지만, 같은 평면(y=0)으로 겹치면
 // z-파이팅이 생겨 살짝 계단을 줘 근경이 원경 위로 오게 한다.
+// ⚠️ 근경 base를 WATER_Y(0.7=서퍼·장애물 ride 평면) 아래로 둔다 — 예전 0.8+진폭0.7은
+//    파도 마루(~1.47)가 ride 평면 앞을 휩쓸어 먼 레인 장애물을 가렸음. base를 낮춰 거친 바다(높은
+//    진폭)에서도 마루가 장애물을 '지나칠' 뿐 덮지 않게. 진폭은 _animateWaves에서 테마 swell로 스케일.
 const WAVE_LAYERS = [
-  { z: 0, y: 0.0, color: 0x00b4d8, seg: 20, speed: 0.8 },   // 원경(깊은 청록)
-  { z: 5, y: 0.4, color: 0x20c8e4, seg: 16, speed: 1.1 },   // 중경
-  { z: 9, y: 0.8, color: 0x32e4ec, seg: 12, speed: 1.5 },   // 근경(밝은 시안)
+  { z: 0, y: 0.0,  color: 0x00b4d8, seg: 20, speed: 0.8 },   // 원경(깊은 청록)
+  { z: 5, y: 0.22, color: 0x20c8e4, seg: 16, speed: 1.1 },   // 중경
+  { z: 9, y: 0.40, color: 0x32e4ec, seg: 12, speed: 1.5 },   // 근경(밝은 시안) — ride 평면(0.7) 아래
 ];
 
 // Phaser 2D 캔버스를 대체하는 Three.js 렌더 레이어.
@@ -28,12 +32,17 @@ const WAVE_LAYERS = [
 // 게임 로직·입력·점수·HUD는 그대로 Phaser가 담당하고, 게임 루프도 Phaser가 주도한다.
 // GameScene.update()가 매 프레임 render(dt)를 호출해 "보이는 것"만 Three에 위임한다.
 export class ThreeLayer {
-  constructor(parentId = 'game-container') {
+  constructor(themeKey = 'jeju', parentId = 'game-container') {
     const parent = document.getElementById(parentId);
     const w = parent.clientWidth  || window.innerWidth;
     const h = parent.clientHeight || window.innerHeight;
     this.t = 0;   // 파도 애니메이션 누적 시간(s)
     this._shakeMs = 0;   // 카메라 흔들림 남은 시간(ms)
+
+    // 스테이지 테마 — 2D OceanBackground와 같은 데이터 사용(일관성). 지금은 swell(너울 세기)만
+    // 3D 파도에 반영. (색/밤·폭풍 등 나머지 테마 적용은 후속.)
+    this._theme = BACKGROUND_THEMES[themeKey] ?? BACKGROUND_THEMES.jeju;
+    this._swell = this._theme.swell ?? 1;   // 잔잔(1.0) ~ 괴물 파도(1.75)
 
     // ── 렌더러 ── 게임 컨테이너 위에 absolute로 올리는 투명 가능 WebGL 캔버스
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -95,17 +104,22 @@ export class ThreeLayer {
     }
   }
 
-  // 잔잔한 파도 — sin/cos 합성으로 정점 높이(y) 변위. flatShading이라 노멀 재계산 불필요.
+  // 파도 — sin/cos 합성으로 정점 높이(y) 변위. flatShading이라 노멀 재계산 불필요.
+  // 진폭/촐싹임을 테마 swell로 스케일(잔잔↔괴물파도). 근경 base(0.40)가 ride 평면(0.7)보다
+  // 낮아, 거칠어져도 마루가 장애물 위를 '지나갈' 뿐 영구히 덮지 않음(가독성 보존).
   _animateWaves() {
-    const t = this.t;
+    const t  = this.t;
+    const sw = this._swell;
+    const a1 = 0.30 * sw, a2 = 0.15 * sw;          // 진폭 (잔잔 0.45 ~ 괴물파도 ~0.79)
     for (const { mesh, speed } of this.waves) {
+      const sp  = speed * (1 + (sw - 1) * 0.35);   // 거친 바다일수록 더 빠르게 촐싹임
       const pos = mesh.geometry.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const x = pos.getX(i);
         const z = pos.getZ(i);
         pos.setY(i,
-          Math.sin(x * 0.18 + t * speed) * 0.42 +
-          Math.cos(z * 0.25 + t * speed * 0.7) * 0.28,
+          Math.sin(x * 0.18 + t * sp) * a1 +
+          Math.cos(z * 0.25 + t * sp * 0.7) * a2,
         );
       }
       pos.needsUpdate = true;

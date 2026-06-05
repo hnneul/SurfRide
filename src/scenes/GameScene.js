@@ -65,7 +65,7 @@ export default class GameScene extends Phaser.Scene {
     // ─── 렌더 레이어를 Three.js로 전환 ──────────────────────────────────────────
     // 이 단계: 씬·카메라·조명만 세팅. Phaser 2D 캔버스를 숨기고 그 위에 Three 캔버스를 올린다.
     // 게임 로직·입력·HUD 코드는 그대로 — update()가 매 프레임 three.render()로 렌더만 위임.
-    this.three = new ThreeLayer();
+    this.three = new ThreeLayer(this.stage.theme);
     this._phaserCanvas = this.sys.game.canvas;
     this._phaserCanvas.style.display = 'none';
     this.hud = mountHud();   // 인게임 HUD DOM 오버레이 (HUDScene 로직은 그대로, 표시만 보강)
