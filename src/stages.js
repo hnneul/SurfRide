@@ -114,6 +114,7 @@ export const STAGES = [
       obstaclesPerMin: 27,
       fakeSignalRate:  0.09,
       compoundRate:    0.2,
+      narrowLane:      true,   // 암초 지대: 가동 폭을 좁히고 통로가 위아래로 이동
     },
     events: PATTERNS.STAGE_5,
   },

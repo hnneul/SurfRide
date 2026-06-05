@@ -162,8 +162,11 @@ export class Player {
     this.vSteer = Phaser_clamp(this.vSteer, -STEER_MAX, STEER_MAX);
     this.baseY += this.vSteer * dt;
 
-    if (this.baseY < RIDE_TOP_Y)    { this.baseY = RIDE_TOP_Y;    if (this.vSteer < 0) this.vSteer = 0; }
-    if (this.baseY > RIDE_BOTTOM_Y) { this.baseY = RIDE_BOTTOM_Y; if (this.vSteer > 0) this.vSteer = 0; }
+    // 가동 폭 — 기본은 RIDE 전체. 암초 지대(narrowLane)에선 environment가 좁은 통로 경계를 준다.
+    const laneTop = environment?.laneTopY ?? RIDE_TOP_Y;
+    const laneBot = environment?.laneBottomY ?? RIDE_BOTTOM_Y;
+    if (this.baseY < laneTop) { this.baseY = laneTop; if (this.vSteer < 0) this.vSteer = 0; }
+    if (this.baseY > laneBot) { this.baseY = laneBot; if (this.vSteer > 0) this.vSteer = 0; }
   }
 
   // 누른 '순간'에만 버퍼 충전(엣지) → 홀드 연사 방지 유지.

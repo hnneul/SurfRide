@@ -5,6 +5,7 @@ import { Surfer } from './surfer.js';
 import { Obstacles } from './obstacles.js';
 import { Signals } from './signals.js';
 import { GoldenFishLayer } from './goldenFish.js';
+import { Reef } from './reef.js';
 import { Fx } from './fx.js';
 
 // Phaser 2D 캔버스를 대체하는 Three.js 렌더 레이어 (오케스트레이터).
@@ -46,6 +47,7 @@ export class ThreeLayer {
     this.obstacles  = new Obstacles(this.scene);
     this.signals    = new Signals(this.scene);
     this.goldenFish = new GoldenFishLayer(this.scene);
+    this.reef       = new Reef(this.scene);
     this.fx         = new Fx();
 
     this._onResize = () => this.resize();
@@ -60,6 +62,7 @@ export class ThreeLayer {
       this.signals.sync(state.signals);
       this.obstacles.sync(state.obstacles);
       this.goldenFish.sync(state.goldenFishes, this.t);
+      this.reef.sync(state.reef);
     }
     this.goldenFish.updateBursts(dtMs);
     this.fx.applyShake(this.camera, dtMs);
@@ -85,6 +88,7 @@ export class ThreeLayer {
     this.obstacles.dispose();
     this.signals.dispose();
     this.goldenFish.dispose();
+    this.reef.dispose();
     this.renderer.dispose();
     this._el.remove();
   }

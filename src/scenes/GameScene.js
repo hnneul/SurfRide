@@ -40,6 +40,9 @@ const LANDING_JITTER_BY_STAGE = Object.freeze({
   10: 22,
 });
 
+const REEF_PERIOD_MS = 11_000;   // 암초 지대: 이벤트 주기(이 간격마다 한 번 발동)
+const REEF_ACTIVE_MS = 4_000;    // 한 번 발동 길이(좁아짐 → 최협 → 풀림)
+
 export default class GameScene extends Phaser.Scene {
   constructor() { super({ key: 'GameScene' }); }
 
@@ -176,6 +179,9 @@ export default class GameScene extends Phaser.Scene {
       obstacles:    this.obstacleManager.obstacles,
       signals:      this.obstacleManager.signals,
       goldenFishes: this.goldenFish.fishes,
+      reef: this.stageGimmicks?.reefActive
+        ? { topY: this.stageGimmicks.laneTopY, bottomY: this.stageGimmicks.laneBottomY }
+        : null,
     });
     this.hud?.update({
       health:       this.player.health,
@@ -308,6 +314,10 @@ export default class GameScene extends Phaser.Scene {
       updraftY: null,
       jumpBoost: 1,
       updraftLift: 0,
+      narrowLane: !!difficulty.narrowLane,
+      laneTopY: null,
+      laneBottomY: null,
+      reefActive: false,
       label: null,
     };
     this._nextStormRumble = 4_800;
@@ -328,6 +338,9 @@ export default class GameScene extends Phaser.Scene {
     fx.updraftActive = false;
     fx.playerInUpdraft = false;
     fx.updraftY = null;
+    fx.laneTopY = null;
+    fx.laneBottomY = null;
+    fx.reefActive = false;
 
     if (fx.windStrength > 0) {
       const base = Math.sin(t * 0.0011 + fx.seed) * 0.22;
@@ -375,6 +388,20 @@ export default class GameScene extends Phaser.Scene {
         this._nextStormRumble = t + 5_800 + Math.random() * 3_500;
       }
       labels.push('폭풍 흔들림');
+    }
+
+    if (fx.narrowLane) {
+      // 암초는 상시가 아니라 '간헐적 이벤트' — 주기마다 잠깐 통로가 좁아졌다 풀린다.
+      const cycle = (t + fx.seed * 800) % REEF_PERIOD_MS;
+      if (cycle < REEF_ACTIVE_MS) {
+        const ease   = Math.sin((cycle / REEF_ACTIVE_MS) * Math.PI);  // 0→1→0 (등장·최협·퇴장)
+        const half   = 0.5 - ease * 0.30;                             // 0.5(자유) → 0.20(가장 좁음)
+        const center = 0.5 + Math.sin(t * 0.0006 + fx.seed) * 0.12;
+        fx.laneTopY    = fracToRideY(Math.max(0, center - half));
+        fx.laneBottomY = fracToRideY(Math.min(1, center + half));
+        fx.reefActive  = ease > 0.15;   // 충분히 좁아졌을 때만 암초 시각·라벨
+        if (fx.reefActive) labels.push('좁은 수로 · 암초');
+      }
     }
 
     if (fx.night) labels.push('야간 시야 제한');
