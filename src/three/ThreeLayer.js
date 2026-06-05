@@ -33,6 +33,7 @@ export class ThreeLayer {
     const w = parent.clientWidth  || window.innerWidth;
     const h = parent.clientHeight || window.innerHeight;
     this.t = 0;   // 파도 애니메이션 누적 시간(s)
+    this._shakeMs = 0;   // 카메라 흔들림 남은 시간(ms)
 
     // ── 렌더러 ── 게임 컨테이너 위에 absolute로 올리는 투명 가능 WebGL 캔버스
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -212,28 +213,82 @@ export class ThreeLayer {
     this.surfer.rotation.z = Math.sin(t * 1.8) * 0.06 + lean;
   }
 
-  // ── 장애물 메시 (상어 지느러미 / 해파리 / 그 외 폴백) ──
+  // ── 장애물 메시 (저폴리, 모두 base가 그룹 원점=수면에 — scale.y 분출에 맞춤) ──
   _makeObstacleMesh(type) {
     const g = new THREE.Group();
-    if (type === 'SHARK') {
-      const fin = new THREE.Mesh(
-        new THREE.ConeGeometry(0.4, 1.1, 4),
-        new THREE.MeshLambertMaterial({ color: 0x557799, flatShading: true }));
-      fin.position.y = 0.55;     // 밑면을 그룹 원점(수면)에 맞춤
-      fin.rotation.z = 0.15;
-      g.add(fin);
-    } else if (type === 'JELLYFISH') {
-      const bell = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5, 5, 4, 0, Math.PI * 2, 0, Math.PI / 2),
-        new THREE.MeshLambertMaterial({ color: 0xff88cc, transparent: true, opacity: 0.8 }));
-      g.add(bell);
-    } else {
-      // 날치·고래·문어·번개 등 (스펙 미지정) — 임시 박스 폴백
-      const fallback = new THREE.Mesh(
-        new THREE.BoxGeometry(0.9, 0.9, 0.6),
-        new THREE.MeshLambertMaterial({ color: 0x8893a6, flatShading: true }));
-      fallback.position.y = 0.45;
-      g.add(fallback);
+    const L = (geo, color, opts = {}) =>
+      new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts }));
+    const Bm = (geo, color, opts = {}) =>
+      new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, ...opts }));
+
+    switch (type) {
+      case 'SHARK': {                        // 상어 — 등지느러미
+        const fin = L(new THREE.ConeGeometry(0.4, 1.1, 4), 0x557799);
+        fin.position.y = 0.55; fin.rotation.z = 0.15;
+        g.add(fin);
+        break;
+      }
+      case 'JELLYFISH': {                    // 해파리 — 반투명 돔
+        g.add(L(new THREE.SphereGeometry(0.5, 5, 4, 0, Math.PI * 2, 0, Math.PI / 2),
+          0xff88cc, { flatShading: false, transparent: true, opacity: 0.8 }));
+        break;
+      }
+      case 'FLYING_FISH': {                  // 날치 — 주황 몸통 + 꼬리 + 날개
+        const body = L(new THREE.IcosahedronGeometry(0.42, 0), 0xff8a3d);
+        body.scale.set(1.9, 0.8, 0.8); body.position.y = 0.62;
+        const tail = L(new THREE.ConeGeometry(0.28, 0.45, 4), 0xff7043);
+        tail.rotation.z = Math.PI / 2; tail.position.set(-0.82, 0.62, 0);
+        const wingL = L(new THREE.BoxGeometry(0.55, 0.05, 0.42), 0xffd180);
+        wingL.position.set(0, 0.72, 0.34); wingL.rotation.x = -0.5;
+        const wingR = L(new THREE.BoxGeometry(0.55, 0.05, 0.42), 0xffd180);
+        wingR.position.set(0, 0.72, -0.34); wingR.rotation.x = 0.5;
+        g.add(body, tail, wingL, wingR);
+        break;
+      }
+      case 'WHALE': {                        // 고래 — 큰 짙은 청색 몸통 + 밝은 배 + 꼬리 + 물기둥
+        const body = L(new THREE.IcosahedronGeometry(1.3, 0), 0x274a6e);
+        body.scale.set(1.6, 0.82, 1.0); body.position.y = 1.05;
+        const belly = L(new THREE.IcosahedronGeometry(1.0, 0), 0xbcdcec);
+        belly.scale.set(1.5, 0.34, 0.74); belly.position.y = 0.6;
+        const tail = L(new THREE.BoxGeometry(0.5, 0.08, 1.2), 0x1d324f);
+        tail.position.set(-2.0, 1.1, 0); tail.rotation.z = 0.2;
+        const spout = Bm(new THREE.ConeGeometry(0.22, 0.7, 5), 0xd6f4ff, { transparent: true, opacity: 0.7 });
+        spout.position.set(0.7, 2.1, 0);
+        g.add(body, belly, tail, spout);
+        break;
+      }
+      case 'OCTOPUS': {                      // 문어 — 보라 머리 + 다리 6 + 눈
+        const head = L(new THREE.IcosahedronGeometry(0.72, 0), 0x9b4dd8);
+        head.position.y = 1.05;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          const leg = L(new THREE.ConeGeometry(0.13, 0.8, 4), 0x7b2dbb);
+          leg.position.set(Math.cos(a) * 0.44, 0.45, Math.sin(a) * 0.44);
+          leg.rotation.x = Math.PI;          // 끝이 아래로
+          g.add(leg);
+        }
+        const eyeL = Bm(new THREE.SphereGeometry(0.13, 6, 6), 0xffffff);
+        eyeL.position.set(0.46, 1.1, 0.28);
+        const eyeR = Bm(new THREE.SphereGeometry(0.13, 6, 6), 0xffffff);
+        eyeR.position.set(0.46, 1.1, -0.28);
+        g.add(head, eyeL, eyeR);
+        break;
+      }
+      case 'LIGHTNING': {                    // 번개 — 노란 지그재그 볼트(발광)
+        const seg = (x, y, rot) => {
+          const s = Bm(new THREE.BoxGeometry(0.16, 0.78, 0.16), 0xffe14d);
+          s.position.set(x, y, 0); s.rotation.z = rot;
+          return s;
+        };
+        g.add(seg(0, 0.5, 0.5), seg(0.16, 1.1, -0.5), seg(0, 1.7, 0.5), seg(-0.12, 2.3, -0.4));
+        break;
+      }
+      default: {                             // 폴백
+        const box = L(new THREE.BoxGeometry(0.9, 0.9, 0.6), 0x8893a6);
+        box.position.y = 0.45;
+        g.add(box);
+        break;
+      }
     }
     return g;
   }
@@ -367,7 +422,28 @@ export class ThreeLayer {
       this._syncSignals(state.signals);
       this._syncObstacles(state.obstacles);
     }
+    this._applyShake(dtMs);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  // 카메라 흔들림 — GameScene이 shake()로 트리거(피격·기상이변·위험구간). 기준(0,10,22)에 지터.
+  shake(durationMs, intensity = 0.006) {
+    this._shakeMs  = durationMs;
+    this._shakeDur = durationMs;
+    this._shakeAmp = intensity;
+  }
+
+  _applyShake(dtMs) {
+    let ox = 0, oy = 0;
+    if (this._shakeMs > 0) {
+      this._shakeMs -= dtMs;
+      const f = Math.max(0, this._shakeMs) / (this._shakeDur || 1);   // 1→0 감쇠
+      const amp = (this._shakeAmp || 0) * 26 * f;
+      ox = (Math.random() - 0.5) * amp;
+      oy = (Math.random() - 0.5) * amp;
+    }
+    this.camera.position.set(ox, 10 + oy, 22);
+    this.camera.lookAt(0, 0, 0);
   }
 
   destroy() {

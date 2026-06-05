@@ -9,6 +9,7 @@ import { OceanBackground } from '../oceanBackground.js';
 import { GoldenFishManager } from '../goldenFish.js';
 import { ThreeLayer } from '../three/ThreeLayer.js';
 import { mountHud } from '../ui/hudDom.js';
+import { mountPause } from '../ui/pauseDom.js';
 
 /** @typedef {import('../types.js').GameSceneInit} GameSceneInit */
 /** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
@@ -68,20 +69,33 @@ export default class GameScene extends Phaser.Scene {
     this._phaserCanvas = this.sys.game.canvas;
     this._phaserCanvas.style.display = 'none';
     this.hud = mountHud();   // 인게임 HUD DOM 오버레이 (HUDScene 로직은 그대로, 표시만 보강)
+    this.pauseUi = mountPause({
+      onResume: () => this.resumeGame(),
+      onMenu:   () => this._exitToMenu(),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._teardownThree, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this._teardownThree, this);
   }
 
-  // 씬 종료 시 Three 레이어·HUD 정리 + Phaser 캔버스 복구 (메뉴·결과 화면은 다시 Phaser가 렌더)
+  // 씬 종료 시 Three 레이어·HUD·일시정지 UI 정리 + Phaser 캔버스 복구
   _teardownThree() {
     this.three?.destroy();
     this.three = null;
     this.hud?.destroy();
     this.hud = null;
+    this.pauseUi?.destroy();
+    this.pauseUi = null;
     if (this._phaserCanvas) {
       this._phaserCanvas.style.display = '';
       this._phaserCanvas = null;
     }
+  }
+
+  // 일시정지 '메인으로' — PauseScene 메뉴 동작을 DOM 버튼에서도 수행
+  _exitToMenu() {
+    this.scene.stop('HUDScene');
+    this.scene.stop('PauseScene');
+    this.scene.start('MainMenuScene');
   }
 
   update(_time, delta) {
@@ -145,6 +159,12 @@ export default class GameScene extends Phaser.Scene {
       remainSec:    Math.max(0, (this.obstacleManager._stageDuration - this.stageTimer) / 1000),
       stageId:      this.stage.id,
       stageName:    this.stage.name,
+      weatherActive: !!this._weatherActive,
+      progress:     Math.min(this.stageTimer / this.obstacleManager._stageDuration, 1),
+      danger:       this.player.inDanger,
+      tutorialText: this._tutorialActive
+        ? (TUTORIAL_STEPS.find((s) => this.stageTimer < s.until)?.text ?? null)
+        : null,
     });
   }
 
@@ -156,6 +176,8 @@ export default class GameScene extends Phaser.Scene {
     this.ocean.splash(this.player.x, this.player.y + 6, 1.8);
     this.cameras.main.shake(dead ? 320 : 180, dead ? 0.012 : 0.008);
     this.cameras.main.flash(140, 255, 90, 90, false);
+    this.three?.shake(dead ? 320 : 180, dead ? 0.012 : 0.008);
+    this.hud?.flash(255, 90, 90, 140);
     return dead;
   }
 
@@ -188,11 +210,13 @@ export default class GameScene extends Phaser.Scene {
     this.ocean.pulse();
     this.ocean.splash(this.player.x, this.player.baseY + 8, 1.2);
     this.cameras.main.flash(120, 180, 230, 255, false);
+    this.hud?.flash(180, 230, 255, 120);
   }
 
   _onGoldenFish() {
     this.ocean.pulse();
     this.cameras.main.flash(120, 255, 224, 120, false);
+    this.hud?.flash(255, 224, 120, 120);
   }
 
   // ─── 기상 이변 구간 (구간 점수 ×2) ────────────────────────────────────────────
@@ -215,6 +239,8 @@ export default class GameScene extends Phaser.Scene {
     if (active) {
       this.cameras.main.flash(220, 120, 150, 220, false);
       this.cameras.main.shake(260, 0.005);
+      this.three?.shake(260, 0.005);
+      this.hud?.flash(120, 150, 220, 220);
       this.ocean.pulse();
     }
   }
@@ -248,6 +274,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (inDanger && !this._wasInDanger) {
       this.cameras.main.shake(180, 0.004);
+      this.three?.shake(180, 0.004);
     }
     this._wasInDanger = inDanger;
 
@@ -322,11 +349,13 @@ export default class GameScene extends Phaser.Scene {
   _pause() {
     this._active = false;
     this.scene.launch('PauseScene', { gameScene: this });
+    this.pauseUi?.show();
   }
 
   resumeGame() {
     this._active = true;
     this.scene.stop('PauseScene');
+    this.pauseUi?.hide();
   }
 
   _gameOver(hitObstacle, cause = 'collision') {
