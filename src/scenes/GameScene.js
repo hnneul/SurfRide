@@ -14,6 +14,10 @@ import { mountPause } from '../ui/pauseDom.js';
 /** @typedef {import('../types.js').GameSceneInit} GameSceneInit */
 /** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
 
+// 렌더 경로: 'three'(3D, 기본) | 'phaser'(2.5D 폴백). 3D면 2D 표시 계층(OceanBackground·
+// HUDScene·danger/tutorial graphics)을 아예 만들지 않는다 — 숨은 캔버스 드로 비용·죽은 상태 제거.
+const RENDER_MODE = 'three';
+
 const TUTORIAL_STEPS = [
   { until:  3400, text: '↑ ↓ 방향키로 파도를 타고 오르내려요' },
   { until:  7000, text: '← → 로 균형을 잡으세요 — 무너지면 와이프아웃!' },
@@ -38,9 +42,12 @@ export default class GameScene extends Phaser.Scene {
     this._wasInDanger = false;
     this._wasGrounded = true;
     this._slowmoMs   = 0;
+    this.renderMode  = RENDER_MODE;
+    const use3D = this.renderMode === 'three';
 
-    this.ocean     = new OceanBackground(this, this.stage.theme);
-    this.dangerGfx = this.add.graphics().setDepth(4);
+    // 2D 표시 계층은 phaser(폴백) 모드에서만 생성. 3D에선 null로 두고 게이트.
+    this.ocean     = use3D ? null : new OceanBackground(this, this.stage.theme);
+    this.dangerGfx = use3D ? null : this.add.graphics().setDepth(4);
 
     this.storage         = new StorageManager();
     this.scoreManager    = new ScoreManager();
@@ -60,15 +67,19 @@ export default class GameScene extends Phaser.Scene {
     this._setupTutorial();
     this._setupDangerText();
 
-    this.scene.launch('HUDScene', { gameScene: this });
+    if (!use3D) {
+      // 2.5D 폴백: Phaser HUD 씬으로 표시
+      this.scene.launch('HUDScene', { gameScene: this });
+      return;
+    }
 
-    // ─── 렌더 레이어를 Three.js로 전환 ──────────────────────────────────────────
-    // 이 단계: 씬·카메라·조명만 세팅. Phaser 2D 캔버스를 숨기고 그 위에 Three 캔버스를 올린다.
-    // 게임 로직·입력·HUD 코드는 그대로 — update()가 매 프레임 three.render()로 렌더만 위임.
+    // ─── 3D 렌더 ──────────────────────────────────────────────────────────────
+    // Phaser 2D 캔버스를 숨기고 그 위에 Three 캔버스 + DOM HUD/일시정지 오버레이를 올린다.
+    // 게임 로직·입력은 그대로 — update()가 매 프레임 three.render()로 렌더만 위임한다.
     this.three = new ThreeLayer(this.stage.theme);
     this._phaserCanvas = this.sys.game.canvas;
     this._phaserCanvas.style.display = 'none';
-    this.hud = mountHud();   // 인게임 HUD DOM 오버레이 (HUDScene 로직은 그대로, 표시만 보강)
+    this.hud = mountHud();
     this.pauseUi = mountPause({
       onResume: () => this.resumeGame(),
       onMenu:   () => this._exitToMenu(),
@@ -173,8 +184,8 @@ export default class GameScene extends Phaser.Scene {
   _onHit(obstacle) {
     const dead = this.player.takeHit();
     this.scoreManager.onComboBreak();
-    this.ocean.pulse();
-    this.ocean.splash(this.player.x, this.player.y + 6, 1.8);
+    this.ocean?.pulse();
+    this.ocean?.splash(this.player.x, this.player.y + 6, 1.8);
     this.cameras.main.shake(dead ? 320 : 180, dead ? 0.012 : 0.008);
     this.cameras.main.flash(140, 255, 90, 90, false);
     this.three?.shake(dead ? 320 : 180, dead ? 0.012 : 0.008);
@@ -186,9 +197,9 @@ export default class GameScene extends Phaser.Scene {
   _handleSpray() {
     const grounded = this.player.isGrounded;
     if (this._wasGrounded && !grounded) {
-      this.ocean.splash(this.player.x, this.player.baseY + 12, 1.0);   // 이륙
+      this.ocean?.splash(this.player.x, this.player.baseY + 12, 1.0);   // 이륙
     } else if (!this._wasGrounded && grounded) {
-      this.ocean.splash(this.player.x, this.player.baseY + 14, 1.6);   // 착지
+      this.ocean?.splash(this.player.x, this.player.baseY + 14, 1.6);   // 착지
     }
     this._wasGrounded = grounded;
   }
@@ -208,14 +219,14 @@ export default class GameScene extends Phaser.Scene {
 
   _triggerSlowmo() {
     this._slowmoMs = 200;
-    this.ocean.pulse();
-    this.ocean.splash(this.player.x, this.player.baseY + 8, 1.2);
+    this.ocean?.pulse();
+    this.ocean?.splash(this.player.x, this.player.baseY + 8, 1.2);
     this.cameras.main.flash(120, 180, 230, 255, false);
     this.hud?.flash(180, 230, 255, 120);
   }
 
   _onGoldenFish() {
-    this.ocean.pulse();
+    this.ocean?.pulse();
     this.cameras.main.flash(120, 255, 224, 120, false);
     this.hud?.flash(255, 224, 120, 120);
   }
@@ -242,14 +253,14 @@ export default class GameScene extends Phaser.Scene {
       this.cameras.main.shake(260, 0.005);
       this.three?.shake(260, 0.005);
       this.hud?.flash(120, 150, 220, 220);
-      this.ocean.pulse();
+      this.ocean?.pulse();
     }
   }
 
   // ─── Background (OceanBackground 위임) ──────────────────────────────────────
   _renderBackground(dt) {
     const scrollSpeed = this.obstacleManager.scrollSpeed;
-    this.ocean.update({
+    this.ocean?.update({
       dt,
       scroll:    this.worldOffset,
       speedNorm: scrollSpeed / 540,
@@ -263,6 +274,7 @@ export default class GameScene extends Phaser.Scene {
 
   // ─── 위험 구간 연출 ───────────────────────────────────────────────────────────
   _setupDangerText() {
+    if (this.renderMode !== 'phaser') return;   // 3D: 위험 표시는 DOM HUD
     this.dangerText = this.add.text(LOGICAL_WIDTH - 40, LOGICAL_HEIGHT / 2, '위험구간 ×1.5', {
       fontSize: '40px', fontFamily: 'sans-serif', color: '#ff5252', fontStyle: 'bold',
     }).setOrigin(1, 0.5).setDepth(5).setAngle(90).setVisible(false);
@@ -270,14 +282,16 @@ export default class GameScene extends Phaser.Scene {
 
   _renderDanger() {
     const inDanger = this.player.inDanger;
-    const gfx = this.dangerGfx;
-    gfx.clear();
-
+    // 위험 진입 흔들림은 두 모드 공통(load-bearing)
     if (inDanger && !this._wasInDanger) {
       this.cameras.main.shake(180, 0.004);
       this.three?.shake(180, 0.004);
     }
     this._wasInDanger = inDanger;
+
+    if (!this.dangerGfx) return;   // 3D: 비네트·속도선은 DOM HUD가 표시
+    const gfx = this.dangerGfx;
+    gfx.clear();
 
     if (!inDanger) { this.dangerText.setVisible(false); return; }
 
@@ -308,6 +322,8 @@ export default class GameScene extends Phaser.Scene {
   _setupTutorial() {
     this._tutorialActive = this.stageIndex === 0 && !this.storage.tutorialCompleted;
     if (!this._tutorialActive) return;
+    this._tutStep = -1;
+    if (this.renderMode !== 'phaser') return;   // 3D: 튜토리얼 안내는 DOM HUD(tutorialText)가 표시
 
     const cx = LOGICAL_WIDTH / 2;
     const y  = LOGICAL_HEIGHT - 120;
@@ -316,7 +332,6 @@ export default class GameScene extends Phaser.Scene {
       fontSize: '34px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
       align: 'center',
     }).setOrigin(0.5).setDepth(6);
-    this._tutStep = -1;
   }
 
   _updateTutorial() {
@@ -326,12 +341,13 @@ export default class GameScene extends Phaser.Scene {
     if (step === -1) {
       this._tutorialActive = false;
       this.storage.markTutorialComplete();
-      this._tutBg.destroy();
-      this._tutText.destroy();
+      this._tutBg?.destroy();
+      this._tutText?.destroy();
       return;
     }
     if (step === this._tutStep) return;
     this._tutStep = step;
+    if (!this._tutText) return;   // 3D: DOM HUD가 tutorialText로 표시(상태만 갱신)
 
     const text = TUTORIAL_STEPS[step].text;
     this._tutText.setText(text);
