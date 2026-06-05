@@ -14,11 +14,18 @@ const WAVE_LAYERS = [
   { z: 9, y: 0.40, seg: 12, speed: 1.5 },   // 근경(밝은 시안) — ride 평면(0.7) 아래
 ];
 
+// 3D 물색 오버라이드(테마별, 원경→근경). 없으면 theme.sea[0]에서 밝기 램프로 파생.
+// jeju(1스테이지): 사용자가 승인한 '선명한 시안'을 유지(테마 청록 대신).
+const SEA3D_OVERRIDE = {
+  jeju: [0x00b4d8, 0x20c8e4, 0x32e4ec],
+};
+
 // 월드 = 바다(파도 3겹) + 배경(하늘·태양/노을·별·섬·구름) + 조명 + 대기(배경/포그).
 // 전부 스테이지 테마(2D OceanBackground와 같은 BACKGROUND_THEMES)에서 색/밤·폭풍/swell을 읽어 적용.
 export class World {
   constructor(scene, themeKey) {
     this.scene = scene;
+    this.themeKey = themeKey;
     this.theme = BACKGROUND_THEMES[themeKey] ?? BACKGROUND_THEMES.jeju;
     this.swell = this.theme.swell ?? 1;   // 잔잔(1.0) ~ 괴물 파도(1.75)
     this._applyAtmosphere();
@@ -55,28 +62,34 @@ export class World {
   }
 
   // 파도 3겹 — 수평으로 눕힌 평면, update()에서 정점 높이를 변위시켜 잔물결.
-  // 색: 테마 표면색(sea[0]) 한 색에서 밝기 램프로 3겹 파생(원경 어둡게→근경 밝게).
-  // ⚠️ 층이 z로 겹쳐 파도 골 사이로 아래 층이 비치는데, sea[0]→sea[2] 전 범위를 쓰면 대비가 커서
-  //    어두운 패치가 튐 → 한 색에서 미세 darken만 줘 일관된 수면 유지(가독성).
   _buildOcean() {
     this.waves = [];
+    const colors = this._waterColors();   // [원경, 중경, 근경]
+    WAVE_LAYERS.forEach((def, i) => {
+      const geo = new THREE.PlaneGeometry(120, 30, def.seg, def.seg);
+      geo.rotateX(-Math.PI / 2);   // 수평 바다 표면으로 눕힘
+      const mat = new THREE.MeshLambertMaterial({ color: colors[Math.min(colors.length - 1, i)], flatShading: true });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, def.y, def.z);
+      this.scene.add(mesh);
+      this.waves.push({ mesh, speed: def.speed });
+    });
+  }
+
+  // 파도 3겹 색(원경→근경). SEA3D_OVERRIDE 있으면 레이어별 색 직접 사용(jeju=승인 시안).
+  // 없으면 테마 sea[0] 한 색에서 밝기 램프로 파생.
+  // ⚠️ 층이 z로 겹쳐 파도 골 사이로 아래 층이 비치는데, sea[0]→sea[2] 전 범위를 쓰면 대비가 커서
+  //    어두운 패치가 튐 → 한 색에서 미세 darken만 줘 일관된 수면 유지(가독성).
+  _waterColors() {
+    const override = SEA3D_OVERRIDE[this.themeKey];
+    if (override) return override.map((c) => new THREE.Color(c));
     const sea = this.theme.sea ?? [0x00b4d8, 0x20c8e4, 0x32e4ec];
     const surface = new THREE.Color(sea[0]);
     // 어두운 테마(밤·폭풍·화산)도 수면이 보이도록 명도 하한 — hue·채도(테마 분위기)는 유지.
     const hsl = { h: 0, s: 0, l: 0 };
     surface.getHSL(hsl);
     if (hsl.l < 0.45) surface.setHSL(hsl.h, hsl.s, 0.45);
-    const shade = [0.80, 0.90, 1.0];   // 원경(z0)→근경(z9): 어둡게→밝은 표면색
-    WAVE_LAYERS.forEach((def, i) => {
-      const geo = new THREE.PlaneGeometry(120, 30, def.seg, def.seg);
-      geo.rotateX(-Math.PI / 2);   // 수평 바다 표면으로 눕힘
-      const color = surface.clone().multiplyScalar(shade[Math.min(shade.length - 1, i)]);
-      const mat = new THREE.MeshLambertMaterial({ color, flatShading: true });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(0, def.y, def.z);
-      this.scene.add(mesh);
-      this.waves.push({ mesh, speed: def.speed });
-    });
+    return [0.80, 0.90, 1.0].map((s) => surface.clone().multiplyScalar(s));   // 원경 어둡게→근경 밝은 표면색
   }
 
   // 배경 — 하늘(그라데이션) · 태양/화산노을 · 별(밤) · 섬(연안 테마만) · 구름. 전부 테마색.
