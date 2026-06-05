@@ -1,17 +1,20 @@
 // 세계지도 DOM 오버레이. Phaser 캔버스 위에 띄우고, 버튼 콜백으로 씬을 전환한다.
 // mountWorldMap(...) 는 { destroy } 를 반환한다.
 
+// 노드 좌표는 실제 해역 위치를 따른다 (동아시아 → 서태평양).
+// %값은 SVG 1000×360 지형과 같은 좌표계를 공유한다 (x%·10 = svgX, y%·3.6 = svgY).
+// 1~4 한반도·제주·황해·동중국해 / 5 류큐(오키나와) / 6 필리핀해 / 7~10 태평양.
 const MAP_NODES = [
-  { id: 1,  x: 9,  y: 42 },
-  { id: 2,  x: 18, y: 47 },
-  { id: 3,  x: 28, y: 56 },
-  { id: 4,  x: 38, y: 45 },
-  { id: 5,  x: 48, y: 54 },
-  { id: 6,  x: 58, y: 66 },
-  { id: 7,  x: 68, y: 47 },
-  { id: 8,  x: 77, y: 58 },
-  { id: 9,  x: 85, y: 37 },
-  { id: 10, x: 91, y: 51 },
+  { id: 1,  x: 25.5, y: 41.1 }, // 제주 앞바다 (부산~제주 사이)
+  { id: 2,  x: 15.0, y: 50.0 }, // 제주 연안 (황해 쪽)
+  { id: 3,  x: 30.0, y: 45.8 }, // 제주 남쪽 해역
+  { id: 4,  x: 19.5, y: 56.9 }, // 동중국해
+  { id: 5,  x: 33.5, y: 63.3 }, // 오키나와 (류큐 열도)
+  { id: 6,  x: 45.5, y: 80.6 }, // 필리핀해
+  { id: 7,  x: 60.0, y: 70.8 }, // 태평양 밤바다
+  { id: 8,  x: 71.0, y: 62.5 }, // 태평양 화산 해역
+  { id: 9,  x: 81.5, y: 30.6 }, // 북태평양 폭풍
+  { id: 10, x: 91.5, y: 48.6 }, // 괴물 파도 해역
 ];
 
 const MAP_TEXTS = {
@@ -34,6 +37,44 @@ const TYPE_LABEL = Object.freeze({
   WHALE: '고래',
   OCTOPUS: '문어',
   LIGHTNING: '번개',
+});
+
+// 실제 지형을 로우폴리로 단순화한 SVG 패스 (viewBox 1000×360).
+// 왼쪽 대륙(중국) → 한반도+제주 → 일본 호상열도 → 류큐 → 타이완 → 필리핀,
+// 오른쪽은 화산 섬 몇 개만 떠 있는 열린 태평양.
+const TERRAIN_SHAPES = Object.freeze({
+  china: 'M -40 -40 L 96 -40 C 110 26 82 60 90 94 C 96 120 72 138 54 156 C 34 176 28 196 14 214 C -6 240 -40 244 -40 244 Z',
+  korea: 'M 186 32 C 162 50 170 86 178 118 C 184 140 196 154 197 154 C 210 138 214 106 211 78 C 208 54 202 36 186 32 Z',
+  jeju: 'M 172 170 C 174 160 208 160 212 171 C 214 182 174 183 172 170 Z',
+  japan: 'M 290 150 C 328 132 386 120 430 106 C 458 97 478 74 490 46 C 504 54 502 84 488 104 C 468 126 414 144 364 156 C 332 163 308 164 290 150 Z',
+  ryukyu: 'M 314 176 C 320 172 327 178 322 185 C 317 191 309 186 314 176 Z M 326 204 C 332 200 339 206 334 213 C 329 219 321 214 326 204 Z M 330 248 C 336 244 343 250 338 257 C 333 263 325 258 330 248 Z',
+  taiwan: 'M 100 244 C 112 242 118 256 113 272 C 108 282 98 279 98 264 C 98 254 94 247 100 244 Z',
+  philippines: 'M 132 300 C 146 297 152 316 145 332 C 140 344 128 341 127 325 C 126 312 122 304 132 300 Z M 150 336 C 160 333 165 347 159 356 C 154 360 146 358 147 346 C 148 339 144 338 150 336 Z M 166 352 C 174 350 178 360 178 360 L 160 360 C 158 356 160 354 166 352 Z',
+  pacific: 'M 690 234 C 698 229 706 236 701 244 C 696 251 686 245 690 234 Z M 728 206 C 735 202 742 209 737 216 C 732 222 723 217 728 206 Z',
+});
+
+// 면 분할(저폴리 음영) — 큰 지형에만 밝은 삼각면을 얹어 입체감을 준다.
+const TERRAIN_FACETS = Object.freeze({
+  china: [
+    '-40,-30 96,-40 90,94 30,72',
+    '30,74 90,96 54,156 8,140',
+    '8,142 54,158 14,214 -20,230',
+  ],
+  korea: [
+    '186,36 210,84 194,148',
+    '170,90 194,148 178,118',
+  ],
+  japan: [
+    '290,150 430,108 386,134',
+    '430,108 490,46 488,102',
+    '386,136 468,128 364,156',
+  ],
+  taiwan: [
+    '100,246 116,258 102,270',
+  ],
+  philippines: [
+    '132,302 152,316 134,330',
+  ],
 });
 
 export function mountWorldMap({ save, stages, onBack, onChallenge }) {
@@ -163,7 +204,7 @@ function routeTemplate() {
   const routePath = smoothCurvePath(pts);
 
   return `
-    ${lowPolyWorldTemplate()}
+    ${realWorldTerrainTemplate()}
     <svg class="world-map-route" viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
       <path class="world-map-route__shadow" d="${routePath}" />
       <path class="world-map-route__line" d="${routePath}" />
@@ -171,73 +212,37 @@ function routeTemplate() {
     </svg>`;
 }
 
-function lowPolyWorldTemplate() {
+function realWorldTerrainTemplate() {
   return `
-    <svg class="lowpoly-world" viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
+    <svg class="lowpoly-world world-map-terrain" viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
       <defs>
-        <linearGradient id="worldSea" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#25c8d3" />
-          <stop offset="52%" stop-color="#0ba8c7" />
-          <stop offset="100%" stop-color="#0878af" />
+        <linearGradient id="worldLandTop" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#b8e27b" />
+          <stop offset="0.48" stop-color="#55bf7e" />
+          <stop offset="1" stop-color="#25906f" />
         </linearGradient>
       </defs>
-      <rect class="lowpoly-sea" width="1000" height="360" />
-      <g class="lowpoly-water-facets">
-        <polygon class="sea-facet sea-facet--1" points="0,0 180,0 92,95 0,86" />
-        <polygon class="sea-facet sea-facet--2" points="172,0 350,0 290,92 92,95" />
-        <polygon class="sea-facet sea-facet--3" points="350,0 545,0 490,104 290,92" />
-        <polygon class="sea-facet sea-facet--4" points="545,0 760,0 690,104 490,104" />
-        <polygon class="sea-facet sea-facet--5" points="760,0 1000,0 1000,92 690,104" />
-        <polygon class="sea-facet sea-facet--6" points="0,86 92,95 160,224 0,245" />
-        <polygon class="sea-facet sea-facet--7" points="290,92 490,104 520,228 336,220" />
-        <polygon class="sea-facet sea-facet--8" points="690,104 1000,92 1000,248 790,236" />
-        <polygon class="sea-facet sea-facet--9" points="0,245 160,224 318,360 0,360" />
-        <polygon class="sea-facet sea-facet--10" points="520,228 790,236 1000,360 318,360" />
+      <g class="world-map-ocean-tiles">
+        <polygon points="0,282 120,243 216,360 0,360" />
+        <polygon points="118,244 286,230 360,360 216,360" />
+        <polygon points="287,230 450,203 550,360 360,360" />
+        <polygon points="452,204 621,180 734,360 550,360" />
+        <polygon points="622,181 805,153 1000,315 1000,360 734,360" />
+        <polygon points="250,0 458,0 376,129 214,112" />
+        <polygon points="459,0 707,0 625,134 376,129" />
+        <polygon points="708,0 1000,0 1000,135 624,134" />
       </g>
-      <g class="lowpoly-land lowpoly-land--asia">
-        <polygon class="land-shadow" points="30,82 155,48 282,64 380,112 342,198 246,236 132,212 42,164" />
-        <polygon class="land-facet grass-a" points="30,74 155,40 176,118 82,132" />
-        <polygon class="land-facet grass-b" points="155,40 282,56 246,130 176,118" />
-        <polygon class="land-facet hill-a" points="282,56 380,104 302,150 246,130" />
-        <polygon class="land-facet grass-c" points="82,132 176,118 164,214 42,156" />
-        <polygon class="land-facet sand-a" points="176,118 246,130 242,228 164,214" />
-        <polygon class="land-facet forest-a" points="246,130 302,150 342,190 242,228" />
-        <polygon class="land-facet beach-a" points="302,150 380,104 342,190" />
-        <polygon class="land-facet snow-a" points="68,36 260,20 380,48 352,72 132,68" />
+      <g class="world-map-shallows">
+        ${Object.values(TERRAIN_SHAPES).map(d => `<path d="${d}" />`).join('')}
       </g>
-      <g class="lowpoly-land lowpoly-land--australia">
-        <polygon class="land-shadow" points="420,240 548,220 640,258 622,322 484,334 398,294" />
-        <polygon class="land-facet sand-b" points="420,232 548,212 524,266 398,286" />
-        <polygon class="land-facet grass-b" points="548,212 640,250 556,282 524,266" />
-        <polygon class="land-facet desert-a" points="398,286 524,266 484,326" />
-        <polygon class="land-facet beach-b" points="524,266 556,282 622,314 484,326" />
+      <g class="world-map-land-sides">
+        ${Object.entries(TERRAIN_SHAPES).map(([key, d]) => `<path class="land-${key}" d="${d}" />`).join('')}
       </g>
-      <g class="lowpoly-land lowpoly-land--america">
-        <polygon class="land-shadow" points="730,76 916,46 1000,88 1000,176 910,210 782,190 702,138" />
-        <polygon class="land-facet grass-a" points="730,68 916,38 884,112 702,130" />
-        <polygon class="land-facet hill-b" points="916,38 1000,80 1000,132 884,112" />
-        <polygon class="land-facet forest-a" points="702,130 884,112 846,184 782,182" />
-        <polygon class="land-facet sand-a" points="884,112 1000,132 1000,168 910,202 846,184" />
-        <polygon class="land-facet snow-b" points="786,28 1000,20 1000,52 884,58" />
+      <g class="world-map-land">
+        ${Object.entries(TERRAIN_SHAPES).map(([key, d]) => `<path class="land-${key}" d="${d}" />`).join('')}
       </g>
-      <g class="lowpoly-land lowpoly-land--south-america">
-        <polygon class="land-shadow" points="820,214 914,202 968,250 942,346 858,334 810,278" />
-        <polygon class="land-facet forest-b" points="820,206 914,194 892,262 810,270" />
-        <polygon class="land-facet grass-c" points="914,194 968,242 892,262" />
-        <polygon class="land-facet hill-a" points="810,270 892,262 858,326" />
-        <polygon class="land-facet sand-b" points="892,262 968,242 942,338 858,326" />
-      </g>
-      <g class="lowpoly-islets">
-        <polygon class="islet" points="330,202 352,194 374,206 360,224 334,220" />
-        <polygon class="islet" points="392,180 412,172 430,184 414,198" />
-        <polygon class="islet" points="456,204 484,194 506,208 486,226 458,222" />
-        <polygon class="islet" points="600,136 628,128 650,144 632,162 604,156" />
-        <polygon class="islet islet--volcano" points="684,204 716,188 744,208 724,234 692,230" />
-      </g>
-      <g class="lowpoly-boats">
-        <path d="M190 278 l34 4 -10 12 -26 -3z" />
-        <path d="M664 90 l30 3 -8 10 -24 -2z" />
-        <path d="M760 266 l32 4 -9 11 -25 -3z" />
+      <g class="world-map-land-facets">
+        ${Object.values(TERRAIN_FACETS).flat().map(points => `<polygon points="${points}" />`).join('')}
       </g>
     </svg>`;
 }
