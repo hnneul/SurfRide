@@ -6,3 +6,5 @@ node_modules/
 dist/
 team/
 .DS_Store
+.md
+.pdf
