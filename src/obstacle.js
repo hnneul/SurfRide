@@ -22,13 +22,16 @@ export const SignalType = Object.freeze({
 });
 
 // avoid: 'jump' = 점프로 넘을 수 있음(낮은 장애물) | 'move' = 점프 무효, 미리 위치 이동해야 함
+// visualScale: 3D 메시 크기 배율 — 보이는 크기를 hitbox에 맞춰 '안 닿았는데 맞음/닿았는데 안 맞음'을
+//   줄이는 튜닝 값(렌더 전용, three/obstacles.js가 사용). 1.0=메시 설계 크기. 얇은 상어 지느러미는
+//   넓은 hitbox를 못 채워 키움. 느낌 기반이니 플레이하며 조정.
 export const OBSTACLE_META = Object.freeze({
-  [ObstacleType.FLYING_FISH]: { signalType: SignalType.SPLASH,   name: '날치',   signalName: '물보라', hitboxW:  80, hitboxH:  40, avoid: 'jump' },
-  [ObstacleType.SHARK]:       { signalType: SignalType.FIN,      name: '상어',   signalName: '등지느러미', hitboxW: 100, hitboxH:  60, avoid: 'jump' },
-  [ObstacleType.WHALE]:       { signalType: SignalType.SHADOW,   name: '고래',   signalName: '바닷속 그림자', hitboxW: 200, hitboxH: 100, avoid: 'move' },
-  [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     name: '해파리', signalName: '빛나는 점', hitboxW:  70, hitboxH:  70, avoid: 'jump' },
-  [ObstacleType.OCTOPUS]:     { signalType: SignalType.TENTACLE, name: '문어',   signalName: '다리 그림자', hitboxW: 120, hitboxH:  80, avoid: 'jump' },
-  [ObstacleType.LIGHTNING]:   { signalType: SignalType.FLASH,    name: '번개',   signalName: '섬광', hitboxW:  40, hitboxH: 300, avoid: 'move' },
+  [ObstacleType.FLYING_FISH]: { signalType: SignalType.SPLASH,   name: '날치',   signalName: '물보라', hitboxW:  80, hitboxH:  40, avoid: 'jump', visualScale: 1.0 },
+  [ObstacleType.SHARK]:       { signalType: SignalType.FIN,      name: '상어',   signalName: '등지느러미', hitboxW: 100, hitboxH:  60, avoid: 'jump', visualScale: 1.3 },
+  [ObstacleType.WHALE]:       { signalType: SignalType.SHADOW,   name: '고래',   signalName: '바닷속 그림자', hitboxW: 200, hitboxH: 100, avoid: 'move', visualScale: 1.0 },
+  [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     name: '해파리', signalName: '빛나는 점', hitboxW:  70, hitboxH:  70, avoid: 'jump', visualScale: 1.0 },
+  [ObstacleType.OCTOPUS]:     { signalType: SignalType.TENTACLE, name: '문어',   signalName: '다리 그림자', hitboxW: 120, hitboxH:  80, avoid: 'jump', visualScale: 1.0 },
+  [ObstacleType.LIGHTNING]:   { signalType: SignalType.FLASH,    name: '번개',   signalName: '섬광', hitboxW:  40, hitboxH: 300, avoid: 'move', visualScale: 1.15 },
 });
 
 // ─── SignalInstance (예고 신호 — 6종 고유 비주얼) ─────────────────────────────
@@ -204,6 +207,7 @@ class ObstacleInstance {
     const meta   = OBSTACLE_META[this.type];
     this.hitboxW = meta.hitboxW;
     this.hitboxH = meta.hitboxH;
+    this.visualScale = meta.visualScale ?? 1;               // 3D 메시 크기 배율(three/obstacles.js)
     this.avoidMode = meta.avoid;                            // 'jump' | 'move'
     this.fromAbove = this.type === ObstacleType.LIGHTNING;  // 번개는 위→아래
     this.parts   = {};
