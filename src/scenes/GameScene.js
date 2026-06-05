@@ -144,10 +144,11 @@ export default class GameScene extends Phaser.Scene {
     // 렌더만 Three에 위임 — 서퍼·장애물은 게임 좌표(x·baseY·jumpOffset·targetY)를 그대로 추종.
     // 충돌 판정은 obstacleManager의 2D AABB(checkCollision)가 담당 — 여기선 안 건드림.
     this.three?.render(dt, {
-      player:    this.player,
-      cursors:   this.cursors,
-      obstacles: this.obstacleManager.obstacles,
-      signals:   this.obstacleManager.signals,
+      player:       this.player,
+      cursors:      this.cursors,
+      obstacles:    this.obstacleManager.obstacles,
+      signals:      this.obstacleManager.signals,
+      goldenFishes: this.goldenFish.fishes,
     });
     this.hud?.update({
       health:       this.player.health,
