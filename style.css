@@ -863,6 +863,10 @@ html, body {
 .hud__right { text-align: right; }
 .hud__score { font-size: 32px; font-weight: 800; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
 .hud__combo { font-size: 22px; font-weight: 700; color: #ffd700; min-height: 26px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
+.hud__perfect { font-size: 20px; font-weight: 700; color: #5fd8e8; min-height: 24px; margin-top: 2px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); transform-origin: right center; }
+.hud__perfect.is-zero { opacity: 0.4; }
+.hud__perfect.is-pop { animation: hud-perfect-pop 0.42s ease-out; }
+@keyframes hud-perfect-pop { 0% { transform: scale(1.5); color: #ffffff; } 100% { transform: scale(1); } }
 
 .hud__balance {
   position: absolute;
@@ -898,6 +902,43 @@ html, body {
 /* HUD 피격·이벤트 플래시 (전체 화면 색, JS가 opacity 페이드) */
 .hud__flash { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 
+/* 후반 해역 기믹: 야간 시야, 강풍 줄기, 스테이지 효과 배너 */
+.hud__visibility {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+  background:
+    radial-gradient(ellipse at 36% 52%, transparent 0 22%, rgba(2, 8, 24, 0.24) 42%, rgba(1, 4, 16, 0.58) 100%);
+}
+.hud.is-night .hud__visibility { opacity: 1; }
+.hud.is-storm .hud__visibility {
+  background:
+    radial-gradient(ellipse at 36% 52%, transparent 0 20%, rgba(6, 10, 18, 0.20) 42%, rgba(2, 4, 10, 0.48) 100%);
+}
+.hud__wind {
+  position: absolute;
+  inset: -20% -10%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(var(--wind-shift, 0));
+  transition: opacity 0.2s ease;
+  background:
+    repeating-linear-gradient(
+      104deg,
+      transparent 0 46px,
+      rgba(255, 255, 255, 0.18) 46px 49px,
+      transparent 49px 118px
+    );
+  animation: hud-wind-flow 0.55s linear infinite;
+}
+.hud.is-windy .hud__wind { opacity: var(--wind-opacity, 0.28); }
+@keyframes hud-wind-flow {
+  from { background-position: 0 0; }
+  to { background-position: 120px 0; }
+}
+
 /* HUD 기상이변 배너 */
 .hud__weather {
   position: absolute; top: 116px; left: 50%; transform: translateX(-50%);
@@ -910,6 +951,82 @@ html, body {
 }
 .hud__weather[hidden] { display: none; }
 @keyframes hud-weather-pulse { 50% { opacity: 0.6; } }
+
+.hud__stage-effect,
+.hud__updraft {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 18px;
+  border-radius: 11px;
+  color: #eaf7ff;
+  font-size: 18px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(180, 230, 255, 0.42);
+  background: rgba(5, 20, 38, 0.42);
+}
+.hud__stage-effect { top: 190px; }
+.hud__stage-effect[hidden],
+.hud__updraft[hidden] { display: none; }
+.hud__perfect-toast {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translate(-50%, -50%) scale(0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 250px;
+  padding: 14px 28px 16px;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.5), transparent 48%),
+    rgba(4, 18, 36, 0.48);
+  border: 2px solid rgba(255, 237, 143, 0.9);
+  box-shadow:
+    0 0 0 7px rgba(255, 225, 98, 0.10),
+    0 18px 42px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  text-align: center;
+}
+.hud__perfect-toast[hidden] { display: none; }
+.hud__perfect-toast strong {
+  font-size: 30px;
+  line-height: 1;
+  color: #ffffff;
+  text-shadow: 0 0 14px rgba(255, 236, 151, 0.85), 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+.hud__perfect-toast span {
+  margin-top: 6px;
+  font-size: 22px;
+  font-weight: 900;
+  color: #ffe96a;
+  text-shadow: 0 0 10px rgba(255, 233, 106, 0.7);
+}
+.hud__perfect-toast.is-pop {
+  animation: hud-perfect-toast 0.76s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes hud-perfect-toast {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.62); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  70% { opacity: 1; transform: translate(-50%, -58%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -66%) scale(0.96); }
+}
+.hud__updraft {
+  bottom: 88px;
+  color: #c7fff7;
+  border-color: rgba(122, 247, 224, 0.5);
+  background: rgba(0, 70, 78, 0.42);
+}
+.hud__updraft.is-ready {
+  color: #ffffff;
+  border-color: rgba(255, 240, 160, 0.75);
+  background: rgba(8, 102, 112, 0.6);
+  animation: hud-updraft-ready 0.7s ease-in-out infinite;
+}
+@keyframes hud-updraft-ready { 50% { transform: translateX(-50%) translateY(-4px); } }
 
 /* ─────────────────────────────────────────────────────────────────────────
    일시정지 오버레이 (DOM — Three 캔버스 위)

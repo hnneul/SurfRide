@@ -8,6 +8,8 @@ export function mountHud(parent = document.getElementById('game-container')) {
   root.setAttribute('aria-hidden', 'true');
   root.innerHTML = `
     <div class="hud__flash"></div>
+    <div class="hud__visibility"></div>
+    <div class="hud__wind"></div>
     <div class="hud__danger"></div>
     <div class="hud__top">
       <div class="hud__hearts"></div>
@@ -18,6 +20,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
       <div class="hud__right">
         <div class="hud__score">0</div>
         <div class="hud__combo"></div>
+        <div class="hud__perfect"></div>
       </div>
     </div>
     <div class="hud__minimap">
@@ -29,6 +32,12 @@ export function mountHud(parent = document.getElementById('game-container')) {
       <div class="hud__minimap-ends"><span>제주</span><span>태평양</span></div>
     </div>
     <div class="hud__weather" hidden>⚡ 기상 이변 · 점수 ×2</div>
+    <div class="hud__stage-effect" hidden></div>
+    <div class="hud__updraft" hidden>상승기류 안에서 점프 강화</div>
+    <div class="hud__perfect-toast" hidden>
+      <strong>PERFECT JUMP</strong>
+      <span>+200</span>
+    </div>
     <div class="hud__danger-label" hidden>⚠ 위험 구간 ×1.5</div>
     <div class="hud__tutorial" hidden></div>
     <div class="hud__balance">
@@ -45,15 +54,20 @@ export function mountHud(parent = document.getElementById('game-container')) {
   const el = {
     flash:        root.querySelector('.hud__flash'),
     danger:       root.querySelector('.hud__danger'),
+    wind:         root.querySelector('.hud__wind'),
     dangerLabel:  root.querySelector('.hud__danger-label'),
     hearts:       root.querySelector('.hud__hearts'),
     timer:        root.querySelector('.hud__timer'),
     stage:        root.querySelector('.hud__stage'),
     score:        root.querySelector('.hud__score'),
     combo:        root.querySelector('.hud__combo'),
+    perfect:      root.querySelector('.hud__perfect'),
     minimapFill:   root.querySelector('.hud__minimap-fill'),
     minimapSurfer: root.querySelector('.hud__minimap-surfer'),
     weather:      root.querySelector('.hud__weather'),
+    effect:       root.querySelector('.hud__stage-effect'),
+    updraft:      root.querySelector('.hud__updraft'),
+    perfectToast: root.querySelector('.hud__perfect-toast'),
     tutorial:     root.querySelector('.hud__tutorial'),
     safe:         root.querySelector('.hud__balance-safe'),
     marker:       root.querySelector('.hud__balance-marker'),
@@ -65,6 +79,8 @@ export function mountHud(parent = document.getElementById('game-container')) {
   el.safe.style.width = `${safeFrac * 100}%`;
 
   let heartCount = -1;
+  let prevPerfect = 0;
+  let perfectToastTimer = null;
 
   function update(s) {
     // 체력 하트 (개수 바뀔 때만 재생성)
@@ -88,6 +104,17 @@ export function mountHud(parent = document.getElementById('game-container')) {
     el.score.textContent = s.score.toLocaleString();
     el.combo.textContent = s.combo > 0 ? `COMBO ×${s.combo}` : '';
 
+    // 퍼펙트 점프 누적 — 늘어난 순간만 팝 강조
+    const pj = s.perfectJumps ?? 0;
+    el.perfect.textContent = `✨ 퍼펙트 ×${pj}`;
+    el.perfect.classList.toggle('is-zero', pj === 0);
+    if (pj > prevPerfect) {
+      el.perfect.classList.remove('is-pop');
+      void el.perfect.offsetWidth;   // reflow → 팝 애니메이션 재시작
+      el.perfect.classList.add('is-pop');
+    }
+    prevPerfect = pj;
+
     // 미니맵 (항해 진척) — 출발(제주)→목적지(태평양)
     const prog = Math.max(0, Math.min(1, s.progress ?? 0));
     el.minimapFill.style.width = `${prog * 100}%`;
@@ -97,6 +124,19 @@ export function mountHud(parent = document.getElementById('game-container')) {
     el.weather.hidden = !s.weatherActive;
     el.danger.classList.toggle('is-active', !!s.danger);
     el.dangerLabel.hidden = !s.danger;
+
+    const effect = s.stageEffect ?? {};
+    root.classList.toggle('is-night', !!effect.night);
+    root.classList.toggle('is-storm', !!effect.storm);
+    root.classList.toggle('is-windy', Math.abs(effect.windRatio ?? 0) > 0.25);
+    root.style.setProperty('--wind-ratio', String(effect.windRatio ?? 0));
+    root.style.setProperty('--wind-shift', `${(effect.windRatio ?? 0) * 26}px`);
+    root.style.setProperty('--wind-opacity', String(0.18 + Math.min(1, Math.abs(effect.windRatio ?? 0)) * 0.18));
+    el.effect.hidden = !effect.label;
+    el.effect.textContent = effect.label ?? '';
+    el.updraft.hidden = !effect.updraftActive;
+    el.updraft.classList.toggle('is-ready', !!effect.playerInUpdraft);
+
     if (s.tutorialText) {
       el.tutorial.hidden = false;
       el.tutorial.textContent = s.tutorialText;
@@ -120,9 +160,25 @@ export function mountHud(parent = document.getElementById('game-container')) {
     el.flash.style.opacity = '0';
   }
 
+  function perfectJump() {
+    if (perfectToastTimer) clearTimeout(perfectToastTimer);
+    el.perfectToast.hidden = false;
+    el.perfectToast.classList.remove('is-pop');
+    void el.perfectToast.offsetWidth;
+    el.perfectToast.classList.add('is-pop');
+    perfectToastTimer = setTimeout(() => {
+      el.perfectToast.hidden = true;
+      perfectToastTimer = null;
+    }, 760);
+  }
+
   return {
     update,
     flash,
-    destroy() { root.remove(); },
+    perfectJump,
+    destroy() {
+      if (perfectToastTimer) clearTimeout(perfectToastTimer);
+      root.remove();
+    },
   };
 }

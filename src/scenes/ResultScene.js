@@ -73,7 +73,7 @@ export default class ResultScene extends Phaser.Scene {
     const rows = [
       ['생존 점수',         b[ScoreEvent.SURVIVAL]],
       ['장애물 회피',       b[ScoreEvent.DODGE]],
-      ['니어미스 보너스',   b[ScoreEvent.NEAR_MISS]],
+      ['아슬아슬 보너스',   b[ScoreEvent.NEAR_MISS]],
       [`퍼펙트 점프 ×${this.summary.perfectJumps}`, b[ScoreEvent.PERFECT_JUMP]],
       ['위험구간 보너스',   b[ScoreEvent.DANGER_LANE]],
       [`황금 물고기 ×${this.summary.goldenFish ?? 0}`, b[ScoreEvent.GOLDEN_FISH]],
