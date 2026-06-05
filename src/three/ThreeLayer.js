@@ -59,22 +59,24 @@ export class ThreeLayer {
     parent.appendChild(el);
     this._el = el;
 
-    // ── 씬 ── 심해 남색 배경 + 거리 페이드 포그
+    // ── 씬 ── 배경·포그 = 테마 하늘 중간톤(거리 헤이즈). 밤/폭풍은 자동으로 어두워짐.
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(BG_COLOR);
-    this.scene.fog = new THREE.Fog(BG_COLOR, 55, 110);
+    const atmo = this._theme.sky?.[1] ?? BG_COLOR;
+    this.scene.background = new THREE.Color(atmo);
+    this.scene.fog = new THREE.Fog(atmo, 55, 110);
 
     // ── 카메라 ── 원점을 정면에서 약간 위·뒤로 물러나 바라보는 시점
     this.camera = new THREE.PerspectiveCamera(55, w / h, 0.1, 1000);
     this.camera.position.set(0, 10, 22);
     this.camera.lookAt(0, 0, 0);
 
-    // ── 조명 ── 환경광 위주 + 약한 방향광.
-    // r0.184 물리기반 조명은 디퓨즈를 1/π 처리 → 강도가 ~3배 약하게 렌더되는 게 "탁함"의 원인.
-    // 색이 제 색대로 선명히(실효 ambient ~0.9, 날아가진 않게) 나오도록 강도를 보정.
-    this.scene.add(new THREE.AmbientLight(0xffffff, 2.8));
+    // ── 조명 ── 테마 분위기별(주간 밝게 / 밤 어둡고 차갑게 / 폭풍 흐리게 / 화산 따뜻하게).
+    // r0.184 ÷π 보정: 실효≈intensity/π → 주간 ambient 2.8(실효~0.9)로 색 선명. 신호·황금물고기는
+    // MeshBasic/emissive라 조명과 무관하게 밝아, 밤에도 예고/획득은 보임(장애물 메시만 어두워짐 = 의도된 야간 가시성↓).
+    const L = this._lightingForTheme(this._theme);
+    this.scene.add(new THREE.AmbientLight(L.ambColor, L.ambI));
 
-    const dir = new THREE.DirectionalLight(0xffffff, 0.7);
+    const dir = new THREE.DirectionalLight(L.dirColor, L.dirI);
     dir.position.set(5, 10, 8);
     this.scene.add(dir);
 
@@ -90,18 +92,39 @@ export class ThreeLayer {
     window.addEventListener('resize', this._onResize);
   }
 
-  // 파도 3겹 — 수평으로 눕힌 평면, render()에서 정점 높이를 변위시켜 잔물결
+  // 테마 분위기는 '빛 색(틴트)'으로 표현(밤=차가운 청 / 폭풍=회색 / 화산=따뜻함).
+  // ⚠️ 밝기는 가독성 위해 주간과 거의 같게 유지 — 밤도 플레이 화면은 보여야 함.
+  // (예전 1.55/1.95는 어두운 물색과 겹쳐 7~10해역이 안 보일 정도로 깜깜했음.) 밤 우선(final=night+storm).
+  _lightingForTheme(th) {
+    if (th.night)        return { ambColor: 0x9fb0da, ambI: 2.8, dirColor: 0x9aabd6, dirI: 0.6 };
+    if (th.storm)        return { ambColor: 0xbcc6cf, ambI: 2.8, dirColor: 0xaab4be, dirI: 0.6 };
+    if (th.volcanicGlow) return { ambColor: 0xe2b8a0, ambI: 2.8, dirColor: 0xffb070, dirI: 0.65 };
+    return { ambColor: 0xffffff, ambI: 2.8, dirColor: 0xffffff, dirI: 0.7 };   // 주간
+  }
+
+  // 파도 3겹 — 수평으로 눕힌 평면, render()에서 정점 높이를 변위시켜 잔물결.
+  // 색: 테마 표면색(sea[0]) 한 색에서 밝기 램프로 3겹 파생(원경 어둡게→근경 밝게).
+  // ⚠️ 층이 z로 겹쳐 파도 골 사이로 아래 층이 비치는데, sea[0]→sea[2] 전 범위를 쓰면 대비가 커서
+  //    어두운 패치가 튐 → 한 색에서 미세 darken만 줘 일관된 수면 유지(가독성).
   _buildOcean() {
     this.waves = [];
-    for (const def of WAVE_LAYERS) {
+    const sea = this._theme.sea ?? [0x00b4d8, 0x20c8e4, 0x32e4ec];
+    const surface = new THREE.Color(sea[0]);
+    // 어두운 테마(밤·폭풍·화산)도 수면이 보이도록 명도 하한 — hue·채도(테마 분위기)는 유지.
+    const hsl = { h: 0, s: 0, l: 0 };
+    surface.getHSL(hsl);
+    if (hsl.l < 0.45) surface.setHSL(hsl.h, hsl.s, 0.45);
+    const shade = [0.80, 0.90, 1.0];   // 원경(z0)→근경(z9): 어둡게→밝은 표면색
+    WAVE_LAYERS.forEach((def, i) => {
       const geo = new THREE.PlaneGeometry(120, 30, def.seg, def.seg);
       geo.rotateX(-Math.PI / 2);   // 수평 바다 표면으로 눕힘
-      const mat = new THREE.MeshLambertMaterial({ color: def.color, flatShading: true });
+      const color = surface.clone().multiplyScalar(shade[Math.min(shade.length - 1, i)]);
+      const mat = new THREE.MeshLambertMaterial({ color, flatShading: true });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(0, def.y, def.z);
       this.scene.add(mesh);
       this.waves.push({ mesh, speed: def.speed });
-    }
+    });
   }
 
   // 파도 — sin/cos 합성으로 정점 높이(y) 변위. flatShading이라 노멀 재계산 불필요.
@@ -126,46 +149,81 @@ export class ThreeLayer {
     }
   }
 
-  // 배경 — 하늘 · 태양 · 섬 실루엣 · 떠다니는 구름
+  // 배경 — 하늘(그라데이션) · 태양/화산노을 · 별(밤) · 섬(연안 테마만) · 구름. 전부 테마색.
   _buildBackground() {
-    // 하늘 (단색 백드롭, 조명 영향 없음)
-    const sky = new THREE.Mesh(
-      new THREE.PlaneGeometry(200, 80),
-      new THREE.MeshBasicMaterial({ color: 0xb8e4f9 }),
-    );
+    const th = this._theme;
+
+    // 하늘 — sky[0](천정)→sky[2](수평선) 세로 그라데이션(정점 색). 조명 영향 없는 백드롭.
+    const skyGeo = new THREE.PlaneGeometry(200, 80, 1, 8);
+    const cTop = new THREE.Color(th.sky?.[0] ?? 0xb8e4f9);
+    const cBot = new THREE.Color(th.sky?.[2] ?? 0xb8e4f9);
+    const sp = skyGeo.attributes.position;
+    let minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < sp.count; i++) { const y = sp.getY(i); if (y < minY) minY = y; if (y > maxY) maxY = y; }
+    const cols = [];
+    for (let i = 0; i < sp.count; i++) {
+      const f = (sp.getY(i) - minY) / (maxY - minY || 1);          // 0 아래 → 1 위
+      const c = cBot.clone().lerp(cTop, f);
+      cols.push(c.r, c.g, c.b);
+    }
+    skyGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    const sky = new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }));
     sky.position.set(0, 20, -48);
     this.scene.add(sky);
 
-    // 태양 (저폴리 원반) — 1단계 카메라가 아래를 보므로 보이는 하늘 띠에 맞춰 y를 낮춤(스펙 28→12)
-    const sun = new THREE.Mesh(
-      new THREE.CircleGeometry(4, 6),
-      new THREE.MeshBasicMaterial({ color: 0xfff5b0 }),
-    );
-    sun.position.set(18, 12, -47);
-    this.scene.add(sun);
+    // 태양(주간 sun>0) 또는 화산 노을(volcanicGlow). 밤/폭풍은 둘 다 없음.
+    if ((th.sun ?? 0) > 0) {
+      const sun = new THREE.Mesh(new THREE.CircleGeometry(4, 6),
+        new THREE.MeshBasicMaterial({ color: 0xfff5b0, transparent: true, opacity: Math.min(1, 0.55 + th.sun * 0.45), fog: false }));
+      sun.position.set(18, 12, -47);
+      this.scene.add(sun);
+    } else if (th.volcanicGlow) {
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(5, 7),
+        new THREE.MeshBasicMaterial({ color: 0xff5a2a, transparent: true, opacity: 0.5, fog: false }));
+      glow.position.set(14, 9, -47);
+      this.scene.add(glow);
+    }
 
-    // 섬 — 모래 받침(원기둥) + 산봉우리(원뿔), 수면(y=0)에서 솟음
-    const island = new THREE.Group();
-    const sandMat = new THREE.MeshLambertMaterial({ color: 0xffd166, flatShading: true });   // 모래
-    const peakMat = new THREE.MeshLambertMaterial({ color: 0x52b788, flatShading: true });   // 산
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.5, 5), sandMat);
-    base.position.y = 0.25;
-    const peak = new THREE.Mesh(new THREE.ConeGeometry(2.8, 2.2, 5), peakMat);
-    peak.position.y = 0.5 + 1.1;   // 받침 위(0.5) + 원뿔 절반 높이(1.1)
-    island.add(base, peak);
-    island.position.set(-18, 0, -12);   // z -20→-12: 30깊이 물(z≥-15) 위에 앉도록 당김(스펙 위치는 물 밖에서 떠 보임)
-    this.scene.add(island);
+    // 별 (밤 테마) — 하늘 띠에 흩뿌린 점. 의사난수 분포, 하늘판(z=-48) 앞쪽에 배치.
+    if (th.stars) {
+      const arr = [];
+      for (let i = 0; i < 90; i++) {
+        arr.push((((i * 137.5) % 92) - 46) * 1.9, 7 + ((i * 53) % 12), -40 - ((i * 29) % 7));
+      }
+      const sg = new THREE.BufferGeometry();
+      sg.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+      const stars = new THREE.Points(sg, new THREE.PointsMaterial({
+        color: 0xffffff, size: 0.5, sizeAttenuation: true, transparent: true, opacity: 0.85, fog: false,
+      }));
+      this.scene.add(stars);
+    }
 
-    // 구름 — Icosahedron 3개를 뭉친 덩어리 × 4개, x축으로 천천히 흐름.
-    // (이전 emissive 보정은 밝은 ambient 1.0에서 불필요 → 순백으로 제거)
+    // 섬 — 연안 테마(jeju 계열)만. 외해/밤/폭풍은 생략해 탁 트인 바다.
+    if (th.island) {
+      const island = new THREE.Group();
+      const sandMat = new THREE.MeshLambertMaterial({ color: 0xffd166, flatShading: true });
+      const peakMat = new THREE.MeshLambertMaterial({ color: th.island.color ?? 0x52b788, flatShading: true });
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.5, 5), sandMat);
+      base.position.y = 0.25;
+      const peak = new THREE.Mesh(new THREE.ConeGeometry(2.8, 2.2, 5), peakMat);
+      peak.position.y = 0.5 + 1.1;
+      island.add(base, peak);
+      island.position.set(-18, 0, -12);
+      this.scene.add(island);
+    }
+
+    // 구름 — Icosa 뭉치 ×4, x로 흐름. 테마 clouds(밀도→투명도), 밤/폭풍은 흐릿한 회색.
     this.clouds = [];
-    const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+    const dim = th.night || th.storm;
+    const cloudMat = new THREE.MeshLambertMaterial({
+      color: dim ? 0x9aa6b4 : 0xffffff, flatShading: true,
+      transparent: true, opacity: Math.max(0.12, Math.min(1, th.clouds ?? 0.85)),
+    });
     const puffs = [
       { r: 2.6, p: [ 0.0,  0.0,  0.0] },
       { r: 2.0, p: [-2.4, -0.3,  0.3] },
       { r: 2.2, p: [ 2.2, -0.2, -0.2] },
     ];
-    // y는 스펙(22~29)이면 카메라 프레임 위로 벗어나, 보이는 하늘 띠(≈8~14)로 낮춤
     const placements = [
       { pos: [-30, 10, -38], scale: 1.0 },
       { pos: [ 10, 13, -42], scale: 1.3 },
