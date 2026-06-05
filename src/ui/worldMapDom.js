@@ -2,16 +2,16 @@
 // mountWorldMap(...) 는 { destroy } 를 반환한다.
 
 const MAP_NODES = [
-  { id: 1,  x: 7,  y: 74 },
-  { id: 2,  x: 18, y: 62 },
-  { id: 3,  x: 28, y: 67 },
-  { id: 4,  x: 39, y: 55 },
-  { id: 5,  x: 49, y: 60 },
-  { id: 6,  x: 59, y: 47 },
-  { id: 7,  x: 69, y: 52 },
-  { id: 8,  x: 79, y: 39 },
-  { id: 9,  x: 87, y: 44 },
-  { id: 10, x: 93, y: 31 },
+  { id: 1,  x: 9,  y: 42 },
+  { id: 2,  x: 18, y: 47 },
+  { id: 3,  x: 28, y: 56 },
+  { id: 4,  x: 38, y: 45 },
+  { id: 5,  x: 48, y: 54 },
+  { id: 6,  x: 58, y: 66 },
+  { id: 7,  x: 68, y: 47 },
+  { id: 8,  x: 77, y: 58 },
+  { id: 9,  x: 85, y: 37 },
+  { id: 10, x: 91, y: 51 },
 ];
 
 const MAP_TEXTS = {
@@ -163,10 +163,82 @@ function routeTemplate() {
   const routePath = smoothCurvePath(pts);
 
   return `
+    ${lowPolyWorldTemplate()}
     <svg class="world-map-route" viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
       <path class="world-map-route__shadow" d="${routePath}" />
       <path class="world-map-route__line" d="${routePath}" />
       <path class="world-map-route__dash" d="${routePath}" />
+    </svg>`;
+}
+
+function lowPolyWorldTemplate() {
+  return `
+    <svg class="lowpoly-world" viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="worldSea" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#25c8d3" />
+          <stop offset="52%" stop-color="#0ba8c7" />
+          <stop offset="100%" stop-color="#0878af" />
+        </linearGradient>
+      </defs>
+      <rect class="lowpoly-sea" width="1000" height="360" />
+      <g class="lowpoly-water-facets">
+        <polygon class="sea-facet sea-facet--1" points="0,0 180,0 92,95 0,86" />
+        <polygon class="sea-facet sea-facet--2" points="172,0 350,0 290,92 92,95" />
+        <polygon class="sea-facet sea-facet--3" points="350,0 545,0 490,104 290,92" />
+        <polygon class="sea-facet sea-facet--4" points="545,0 760,0 690,104 490,104" />
+        <polygon class="sea-facet sea-facet--5" points="760,0 1000,0 1000,92 690,104" />
+        <polygon class="sea-facet sea-facet--6" points="0,86 92,95 160,224 0,245" />
+        <polygon class="sea-facet sea-facet--7" points="290,92 490,104 520,228 336,220" />
+        <polygon class="sea-facet sea-facet--8" points="690,104 1000,92 1000,248 790,236" />
+        <polygon class="sea-facet sea-facet--9" points="0,245 160,224 318,360 0,360" />
+        <polygon class="sea-facet sea-facet--10" points="520,228 790,236 1000,360 318,360" />
+      </g>
+      <g class="lowpoly-land lowpoly-land--asia">
+        <polygon class="land-shadow" points="30,82 155,48 282,64 380,112 342,198 246,236 132,212 42,164" />
+        <polygon class="land-facet grass-a" points="30,74 155,40 176,118 82,132" />
+        <polygon class="land-facet grass-b" points="155,40 282,56 246,130 176,118" />
+        <polygon class="land-facet hill-a" points="282,56 380,104 302,150 246,130" />
+        <polygon class="land-facet grass-c" points="82,132 176,118 164,214 42,156" />
+        <polygon class="land-facet sand-a" points="176,118 246,130 242,228 164,214" />
+        <polygon class="land-facet forest-a" points="246,130 302,150 342,190 242,228" />
+        <polygon class="land-facet beach-a" points="302,150 380,104 342,190" />
+        <polygon class="land-facet snow-a" points="68,36 260,20 380,48 352,72 132,68" />
+      </g>
+      <g class="lowpoly-land lowpoly-land--australia">
+        <polygon class="land-shadow" points="420,240 548,220 640,258 622,322 484,334 398,294" />
+        <polygon class="land-facet sand-b" points="420,232 548,212 524,266 398,286" />
+        <polygon class="land-facet grass-b" points="548,212 640,250 556,282 524,266" />
+        <polygon class="land-facet desert-a" points="398,286 524,266 484,326" />
+        <polygon class="land-facet beach-b" points="524,266 556,282 622,314 484,326" />
+      </g>
+      <g class="lowpoly-land lowpoly-land--america">
+        <polygon class="land-shadow" points="730,76 916,46 1000,88 1000,176 910,210 782,190 702,138" />
+        <polygon class="land-facet grass-a" points="730,68 916,38 884,112 702,130" />
+        <polygon class="land-facet hill-b" points="916,38 1000,80 1000,132 884,112" />
+        <polygon class="land-facet forest-a" points="702,130 884,112 846,184 782,182" />
+        <polygon class="land-facet sand-a" points="884,112 1000,132 1000,168 910,202 846,184" />
+        <polygon class="land-facet snow-b" points="786,28 1000,20 1000,52 884,58" />
+      </g>
+      <g class="lowpoly-land lowpoly-land--south-america">
+        <polygon class="land-shadow" points="820,214 914,202 968,250 942,346 858,334 810,278" />
+        <polygon class="land-facet forest-b" points="820,206 914,194 892,262 810,270" />
+        <polygon class="land-facet grass-c" points="914,194 968,242 892,262" />
+        <polygon class="land-facet hill-a" points="810,270 892,262 858,326" />
+        <polygon class="land-facet sand-b" points="892,262 968,242 942,338 858,326" />
+      </g>
+      <g class="lowpoly-islets">
+        <polygon class="islet" points="330,202 352,194 374,206 360,224 334,220" />
+        <polygon class="islet" points="392,180 412,172 430,184 414,198" />
+        <polygon class="islet" points="456,204 484,194 506,208 486,226 458,222" />
+        <polygon class="islet" points="600,136 628,128 650,144 632,162 604,156" />
+        <polygon class="islet islet--volcano" points="684,204 716,188 744,208 724,234 692,230" />
+      </g>
+      <g class="lowpoly-boats">
+        <path d="M190 278 l34 4 -10 12 -26 -3z" />
+        <path d="M664 90 l30 3 -8 10 -24 -2z" />
+        <path d="M760 266 l32 4 -9 11 -25 -3z" />
+      </g>
     </svg>`;
 }
 
@@ -185,19 +257,26 @@ function nodesTemplate({ stages, state }) {
 
     return `
       <button
-        class="world-node world-node--${status}${selected ? ' is-selected' : ''}"
+        class="world-node world-node--${status} world-node--theme-${themeClass(stage.theme)}${selected ? ' is-selected' : ''}"
         style="--x:${node.x}%; --y:${node.y}%;"
         data-act="select"
         data-stage-id="${node.id}"
         ${playable ? '' : 'disabled'}
         aria-pressed="${selected ? 'true' : 'false'}"
       >
-        <span class="world-node__island" aria-hidden="true"></span>
+        <span class="world-node__island" aria-hidden="true">
+          <span class="world-node__tile"></span>
+          <span class="world-node__prop"></span>
+        </span>
         <span class="world-node__marker">${escapeHtml(label)}</span>
         <span class="world-node__name">${escapeHtml(stage.name)}</span>
         <span class="world-node__stars">${escapeHtml(stars || (status === 'next' ? '다음 목적지' : ''))}</span>
       </button>`;
   }).join('');
+}
+
+function themeClass(theme) {
+  return String(theme ?? 'default').replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
 }
 
 function summaryTemplate({ stages, state }) {
