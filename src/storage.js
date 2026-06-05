@@ -5,6 +5,9 @@ const STORAGE_KEY = 'surfride_save';
 const MAX_STAGE_ID = 10;
 const MAX_STAGE_INDEX = MAX_STAGE_ID - 1;
 
+// 개발 중에만 모든 해역 해금(로컬 진행 기록은 유지·병합). vite dev=true / build=false 자동.
+const DEV_UNLOCK_ALL = import.meta.env.DEV;
+
 // ─── 저장 데이터 스키마 ──────────────────────────────────────────────────────
 // {
 //   currentStage:    number,           // 현재 진행 해역 인덱스 (0-indexed)
@@ -171,7 +174,10 @@ export class StorageManager {
 
   _normalizeUnlockedStages(stages) {
     const source = Array.isArray(stages) ? stages : [];
-    const byId = new Map([[1, { id: 1, stars: 0, highScore: 0, cleared: false }]]);
+    // 기본은 1해역만 해금. DEV_UNLOCK_ALL이면 전 해역 시드(기존 기록은 아래 루프에서 병합).
+    const byId = new Map();
+    const seedTo = DEV_UNLOCK_ALL ? MAX_STAGE_ID : 1;
+    for (let id = 1; id <= seedTo; id++) byId.set(id, { id, stars: 0, highScore: 0, cleared: false });
 
     for (const item of source) {
       if (!item || typeof item !== 'object') continue;
