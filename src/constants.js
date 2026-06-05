@@ -13,8 +13,10 @@ export const ERUPT_X = LOGICAL_WIDTH * 0.20;
 export const TARGET_RATIO = 0.35;
 
 // 분출 단계 타이밍(ms)
+// ACTIVE: 분출이 제자리에 떠 있는 시간. 점프로 넘으려면 점프 안전 체공(~0.74s)보다
+// 짧아야 한다 → collidable 위협 = RISE*0.45 + ACTIVE + SINK*0.55 ≈ 0.61s가 되도록 520→380.
 export const ERUPT_RISE_MS   = 220;
-export const ERUPT_ACTIVE_MS = 520;
+export const ERUPT_ACTIVE_MS = 380;
 export const ERUPT_SINK_MS   = 240;
 
 // Near-miss(아슬아슬 회피) 판정 여유 — 히트박스 둘레 그레이즈 반경

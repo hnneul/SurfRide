@@ -9,7 +9,10 @@ export { Lane } from './constants.js';
 const STEER_ACCEL = 2400;   // 수직 가속 (px/s²) — v3: 가동 폭 축소
 const STEER_MAX   = 420;    // 최대 수직 속도 (px/s) — v3: 정밀 이동 강제
 const JUMP_SPEED  = 1180;   // 점프 초기 상승 속도 (px/s)
-const GRAVITY     = 2900;   // 점프 중력 (px/s²)
+// v5: 점프로 분출(ERUPT_X 제자리)을 넘으려면 안전 체공 > 분출 collidable 시간이어야 한다.
+// 체공을 원래 수준(~0.87s, 안 붕 뜨게)으로 되돌리고, 대신 분출 ACTIVE를 줄여
+// 위협을 ~0.61s로 낮춰 양쪽을 만나게 함(ERUPT_ACTIVE_MS와 함께 튜닝).
+const GRAVITY     = 2700;   // 점프 중력 (px/s²)
 
 export class Player {
   constructor(scene) {
@@ -108,20 +111,20 @@ export class Player {
   get inDanger()      { return isDangerY(this.baseY); }
   get zoneMultiplier(){ return zoneMultiplierForY(this.baseY); }
 
-  update(deltaMs, cursors, spaceKey) {
+  update(deltaMs, cursors, spaceKey, environment = null) {
     const dt = deltaMs / 1000;
 
     if (this.invulnMs > 0) this.invulnMs = Math.max(0, this.invulnMs - deltaMs);
 
-    this._handleSteer(dt, cursors);
-    this._handleBalance(dt, cursors);
-    this._handleJump(spaceKey);
-    this._applyPhysics(dt);
+    this._handleSteer(dt, cursors, environment);
+    this._handleBalance(dt, cursors, environment);
+    this._handleJump(spaceKey, environment);
+    this._applyPhysics(dt, environment);
     this._render(deltaMs);
   }
 
   // ←/→ 카운터-스티어로 균형 유지. 무입력 시 드리프트만 누적 → 와이프아웃.
-  _handleBalance(dt, cursors) {
+  _handleBalance(dt, cursors, environment) {
     if (!this.isGrounded) {
       // 공중 = 균형 리셋 호흡: 드리프트 정지, tilt가 0쪽으로 완화
       this.tilt -= this.tilt * Math.min(1, 3.0 * dt);
@@ -137,7 +140,7 @@ export class Player {
     const wobble   = Math.sin(t * 0.004 + this._driftSeed) * BALANCE.WOBBLE_AMP;
     const driftDir = Math.sin(t * 0.0011 + this._driftSeed) >= 0 ? 1 : -1;
 
-    this.tilt += (driftDir * driftMag + wobble) * dt;
+    this.tilt += (driftDir * driftMag + wobble + (environment?.balanceDrift ?? 0)) * dt;
 
     // 보정 입력
     if (cursors.left?.isDown)  this.tilt -= BALANCE.CORRECT_RATE * dt;
@@ -147,11 +150,12 @@ export class Player {
     if (Math.abs(this.tilt) >= BALANCE.WIPEOUT_AT) this.wiped = true;
   }
 
-  _handleSteer(dt, cursors) {
+  _handleSteer(dt, cursors, environment) {
     if (cursors.up.isDown)        this.vSteer -= STEER_ACCEL * dt;
     else if (cursors.down.isDown) this.vSteer += STEER_ACCEL * dt;
     else                          this.vSteer -= this.vSteer * Math.min(1, 11 * dt);
 
+    this.vSteer += (environment?.windForce ?? 0) * dt;
     this.vSteer = Phaser_clamp(this.vSteer, -STEER_MAX, STEER_MAX);
     this.baseY += this.vSteer * dt;
 
@@ -159,16 +163,17 @@ export class Player {
     if (this.baseY > RIDE_BOTTOM_Y) { this.baseY = RIDE_BOTTOM_Y; if (this.vSteer > 0) this.vSteer = 0; }
   }
 
-  _handleJump(spaceKey) {
+  _handleJump(spaceKey, environment) {
     if (spaceKey.isDown && this.isGrounded) {
-      this.jumpVel    = JUMP_SPEED;
+      this.jumpVel    = JUMP_SPEED * (environment?.jumpBoost ?? 1);
       this.isJumping  = true;
       this.isGrounded = false;
     }
   }
 
-  _applyPhysics(dt) {
+  _applyPhysics(dt, environment) {
     if (!this.isGrounded) {
+      this.jumpVel    += (environment?.updraftLift ?? 0) * dt;
       this.jumpVel    -= GRAVITY * dt;
       this.jumpOffset += this.jumpVel * dt;
       if (this.jumpOffset <= 0) {
@@ -176,6 +181,11 @@ export class Player {
         this.jumpVel    = 0;
         this.isJumping  = false;
         this.isGrounded = true;
+        const jitter = environment?.landingJitter ?? 0;
+        if (jitter > 0) {
+          this.baseY += (Math.random() * 2 - 1) * jitter;
+          this.baseY = Phaser_clamp(this.baseY, RIDE_TOP_Y, RIDE_BOTTOM_Y);
+        }
       }
     }
     this.y = this.baseY - this.jumpOffset;

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { LOGICAL_WIDTH, LOGICAL_HEIGHT } from '../constants.js';
+import { LOGICAL_WIDTH, LOGICAL_HEIGHT, fracToRideY, rideYToFrac } from '../constants.js';
 import { Player } from '../player.js';
 import { ObstacleManager } from '../obstacle.js';
 import { ScoreManager } from '../score.js';
@@ -23,8 +23,22 @@ const TUTORIAL_STEPS = [
   { until:  7000, text: '← → 로 균형을 잡으세요 — 무너지면 와이프아웃!' },
   { until: 10400, text: '신호가 뜬 자리에서 장애물이 솟구쳐요. 미리 피하세요' },
   { until: 13600, text: 'Space 로 점프 — 공중에선 균형이 잠시 안정돼요' },
-  { until: 16800, text: '아슬아슬하게 스치며 피하면 니어미스 보너스!' },
+  { until: 16800, text: '장애물을 스치듯 피하면 아슬아슬 보너스!' },
 ];
+
+const WIND_BY_STAGE = Object.freeze({
+  4: 110,
+  6: 145,
+  9: 175,
+  10: 205,
+});
+
+const LANDING_JITTER_BY_STAGE = Object.freeze({
+  4: 8,
+  6: 14,
+  9: 18,
+  10: 22,
+});
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super({ key: 'GameScene' }); }
@@ -58,6 +72,7 @@ export default class GameScene extends Phaser.Scene {
     this.obstacleManager.loadStage(this.stage);
 
     this._setupWeather();
+    this._setupStageGimmicks();
 
     this.cursors  = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
@@ -123,7 +138,8 @@ export default class GameScene extends Phaser.Scene {
     this.worldOffset += this.obstacleManager.scrollSpeed * (dt / 1000);
 
     this._updateWeather();
-    this.player.update(dt, this.cursors, this.spaceKey);
+    this._updateStageGimmicks(dt);
+    this.player.update(dt, this.cursors, this.spaceKey, this.stageGimmicks);
     this.obstacleManager.update(dt, this.stageTimer, this.player);
     const caught = this.goldenFish.update(dt, this.player);
     for (let i = 0; i < caught; i++) this.scoreManager.onGoldenFish();
@@ -168,10 +184,12 @@ export default class GameScene extends Phaser.Scene {
       tilt:         this.player.tilt,
       score:        this.scoreManager.total,
       combo:        this.scoreManager.combo,
+      perfectJumps: this.scoreManager.perfectJumps,
       remainSec:    Math.max(0, (this.obstacleManager._stageDuration - this.stageTimer) / 1000),
       stageId:      this.stage.id,
       stageName:    this.stage.name,
       weatherActive: !!this._weatherActive,
+      stageEffect:   this._stageEffectHud(),
       progress:     Math.min(this.stageTimer / this.obstacleManager._stageDuration, 1),
       danger:       this.player.inDanger,
       tutorialText: this._tutorialActive
@@ -209,7 +227,10 @@ export default class GameScene extends Phaser.Scene {
     const y = this.player.baseY;
     for (const obs of this.obstacleManager.collectResolved()) {
       this.scoreManager.onDodge(y);
-      if (obs.jumpedOver) this.scoreManager.onPerfectJump(y);
+      if (obs.jumpedOver) {
+        this.scoreManager.onPerfectJump(y);
+        this._onPerfectJump();
+      }
       if (obs.grazed && !obs.jumpedOver) {
         this.scoreManager.onNearMiss(y);
         this._triggerSlowmo();
@@ -223,6 +244,17 @@ export default class GameScene extends Phaser.Scene {
     this.ocean?.splash(this.player.x, this.player.baseY + 8, 1.2);
     this.cameras.main.flash(120, 180, 230, 255, false);
     this.hud?.flash(180, 230, 255, 120);
+  }
+
+  _onPerfectJump() {
+    this._slowmoMs = Math.max(this._slowmoMs, 110);
+    this.ocean?.pulse();
+    this.ocean?.splash(this.player.x, this.player.baseY + 8, 1.55);
+    this.cameras.main.flash(95, 255, 236, 120, false);
+    this.cameras.main.shake(110, 0.003);
+    this.three?.shake(110, 0.003);
+    this.hud?.flash(255, 246, 170, 120);
+    this.hud?.perfectJump();
   }
 
   _onGoldenFish() {
@@ -255,6 +287,111 @@ export default class GameScene extends Phaser.Scene {
       this.hud?.flash(120, 150, 220, 220);
       this.ocean?.pulse();
     }
+  }
+
+  // ─── 후반 해역 고유 기믹 ───────────────────────────────────────────────────
+  _setupStageGimmicks() {
+    const stageId = this.stage.id;
+    const difficulty = this.stage.difficulty ?? {};
+    this.stageGimmicks = {
+      seed: Math.random() * Math.PI * 2,
+      windStrength: WIND_BY_STAGE[stageId] ?? 0,
+      windForce: 0,
+      windRatio: 0,
+      balanceDrift: 0,
+      landingJitter: LANDING_JITTER_BY_STAGE[stageId] ?? 0,
+      night: !!difficulty.nightMode,
+      storm: !!difficulty.screenShake,
+      volcanic: this.stage.theme === 'volcanic',
+      updraftActive: false,
+      playerInUpdraft: false,
+      updraftY: null,
+      jumpBoost: 1,
+      updraftLift: 0,
+      label: null,
+    };
+    this._nextStormRumble = 4_800;
+  }
+
+  _updateStageGimmicks(dt) {
+    const fx = this.stageGimmicks;
+    if (!fx) return;
+
+    const t = this.stageTimer;
+    const labels = [];
+
+    fx.windForce = 0;
+    fx.windRatio = 0;
+    fx.balanceDrift = 0;
+    fx.jumpBoost = 1;
+    fx.updraftLift = 0;
+    fx.updraftActive = false;
+    fx.playerInUpdraft = false;
+    fx.updraftY = null;
+
+    if (fx.windStrength > 0) {
+      const base = Math.sin(t * 0.0011 + fx.seed) * 0.22;
+      const gustCycle = (t + fx.seed * 1000) % 11_500;
+      const gustWindow = gustCycle >= 3_500 && gustCycle <= 7_400;
+      const gustEnvelope = gustWindow
+        ? Math.sin(((gustCycle - 3_500) / 3_900) * Math.PI)
+        : 0;
+      const gustWave = Math.sin(t * 0.0019 + fx.seed * 2.7);
+      const gust = Math.abs(gustWave) > 0.72
+        ? Math.sign(gustWave) * ((Math.abs(gustWave) - 0.72) / 0.28) * gustEnvelope
+        : 0;
+      const force = fx.windStrength * (base + gust);
+      fx.windForce = force;
+      fx.windRatio = Math.max(-1, Math.min(1, force / fx.windStrength));
+      fx.balanceDrift = fx.windRatio * 0.18;
+      if (Math.abs(fx.windRatio) > 0.42) labels.push(`강풍 ${fx.windRatio < 0 ? '위쪽' : '아래쪽'}`);
+    }
+
+    if (fx.volcanic) {
+      const cycle = t % 15_000;
+      const active = cycle >= 5_200 && cycle <= 9_800;
+      const cycleIndex = Math.floor(t / 15_000);
+      const updraftFrac = cycleIndex % 2 === 0 ? 0.42 : 0.68;
+      fx.updraftActive = active;
+      fx.updraftY = active ? fracToRideY(updraftFrac) : null;
+
+      if (active) {
+        const playerFrac = rideYToFrac(this.player.baseY);
+        fx.playerInUpdraft = Math.abs(playerFrac - updraftFrac) <= 0.13;
+        if (fx.playerInUpdraft) {
+          fx.jumpBoost = 1.24;
+          fx.updraftLift = 360;
+          labels.push('상승기류 점프 강화');
+        } else {
+          labels.push('수증기 상승기류');
+        }
+      }
+    }
+
+    if (fx.storm) {
+      if (t >= this._nextStormRumble) {
+        this.cameras.main.shake(220, 0.0045);
+        this.three?.shake(220, 0.0045);
+        this._nextStormRumble = t + 5_800 + Math.random() * 3_500;
+      }
+      labels.push('폭풍 흔들림');
+    }
+
+    if (fx.night) labels.push('야간 시야 제한');
+    fx.label = labels.slice(0, 2).join(' · ') || null;
+  }
+
+  _stageEffectHud() {
+    const fx = this.stageGimmicks;
+    if (!fx) return null;
+    return {
+      label: fx.label,
+      night: fx.night,
+      storm: fx.storm,
+      windRatio: fx.windRatio,
+      updraftActive: fx.updraftActive,
+      playerInUpdraft: fx.playerInUpdraft,
+    };
   }
 
   // ─── Background (OceanBackground 위임) ──────────────────────────────────────
