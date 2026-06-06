@@ -312,7 +312,8 @@ export default class GameScene extends Phaser.Scene {
       landingJitter: LANDING_JITTER_BY_STAGE[stageId] ?? 0,
       night: !!difficulty.nightMode,
       storm: !!difficulty.screenShake,
-      volcanic: this.stage.theme === 'volcanic',
+      // 상승기류(점프대) 기믹: 화산 테마이거나 difficulty.updraft 명시 시(예: Stage 10 결합)
+      volcanic: this.stage.theme === 'volcanic' || !!difficulty.updraft,
       updraftActive: false,
       playerInUpdraft: false,
       updraftY: null,
