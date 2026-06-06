@@ -1,6 +1,9 @@
 // 메인 메뉴 DOM 오버레이. Phaser 캔버스 위에 띄우고, 버튼 콜백으로 씬을 전환한다.
 // mountMainMenu(...) 는 { destroy } 를 반환한다.
 
+import menuLogo from '../../img/surfride-logo-v3-cutout.png';
+import menuBackground from '../../img/main-menu-surf-dog.png';
+
 const CONTROLS = [
   ['↑ / ↓', '파도 면을 타고 위(안전)·아래(거친 바다 ×1.5)로 이동'],
   ['← / →', '보드 균형 잡기 — 무너지면 와이프아웃!'],
@@ -13,23 +16,15 @@ export function mountMainMenu({ save, storage, stages, onStart, onContinue, onWo
 
   const overlay = document.createElement('div');
   overlay.className = 'menu-overlay';
+  overlay.style.setProperty('--menu-bg-image', `url("${menuBackground}")`);
   overlay.innerHTML = `
-    <div class="menu-bg" aria-hidden="true">
-      <span class="menu-sun"></span>
-      <span class="menu-wave menu-wave--1"></span>
-      <span class="menu-wave menu-wave--2"></span>
-      <span class="menu-wave menu-wave--3"></span>
-    </div>
-
     <main class="menu">
       <header class="menu-head">
-        <h1 class="menu-title">서프라이드</h1>
+        <h1 class="menu-title">
+          <img class="menu-logo" src="${menuLogo}" alt="SurfRide" draggable="false" />
+        </h1>
         <p class="menu-subtitle">파도를 넘어, 세계를 건너라</p>
       </header>
-
-      <div class="menu-banner">
-        <img src="/menu-hero-surf-dog.jpg" alt="선글라스와 꽃목걸이를 한 하와이안 강아지가 파도 위에서 서핑하는 모습" draggable="false" />
-      </div>
 
       <nav class="menu-actions">
         <button class="btn btn--primary" data-act="start">시작하기</button>
