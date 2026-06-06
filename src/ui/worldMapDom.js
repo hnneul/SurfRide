@@ -185,7 +185,7 @@ function nodesTemplate({ stages, state }) {
 
     return `
       <button
-        class="world-node world-node--${status}${selected ? ' is-selected' : ''}"
+        class="world-node world-node--stage-${node.id} world-node--${status}${selected ? ' is-selected' : ''}"
         style="--x:${node.x}%; --y:${node.y}%;"
         data-act="select"
         data-stage-id="${node.id}"
