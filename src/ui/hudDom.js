@@ -132,6 +132,10 @@ export function mountHud(parent = document.getElementById('game-container')) {
     root.style.setProperty('--wind-ratio', String(effect.windRatio ?? 0));
     root.style.setProperty('--wind-shift', `${(effect.windRatio ?? 0) * 26}px`);
     root.style.setProperty('--wind-opacity', String(0.18 + Math.min(1, Math.abs(effect.windRatio ?? 0)) * 0.18));
+    const haze = effect.visibility ?? 0;
+    root.style.setProperty('--haze-opacity', String(haze));
+    root.classList.toggle('is-squall', effect.hazeKind === 'squall' && haze > 0.01);
+    root.classList.toggle('is-steam',  effect.hazeKind === 'steam'  && haze > 0.01);
     el.effect.hidden = !effect.label;
     el.effect.textContent = effect.label ?? '';
     el.updraft.hidden = !effect.updraftActive;
