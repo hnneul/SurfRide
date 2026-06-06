@@ -21,7 +21,7 @@ export class Player {
 
     this.maxHealth = MAX_HEALTH;
     this.hitboxW = 58;
-    this.hitboxH = 88;
+    this.hitboxH = 56;   // 서퍼 보이는 깊이(~58px)에 맞춤 — 세로 회피가 시각과 일치
 
     this.shadow = scene.add.ellipse(0, 0, 82, 18, 0x06182c, 0.34).setDepth(1.7);
 
@@ -87,7 +87,7 @@ export class Player {
   get hitbox() {
     return {
       x: this.x - this.hitboxW / 2,
-      y: (this.y - 12) - this.hitboxH / 2,
+      y: (this.y - 6) - this.hitboxH / 2,
       w: this.hitboxW,
       h: this.hitboxH,
     };
@@ -97,7 +97,7 @@ export class Player {
   get groundHitbox() {
     return {
       x: this.x - this.hitboxW / 2,
-      y: (this.baseY - 12) - this.hitboxH / 2,
+      y: (this.baseY - 6) - this.hitboxH / 2,
       w: this.hitboxW,
       h: this.hitboxH,
     };
