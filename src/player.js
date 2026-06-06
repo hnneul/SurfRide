@@ -149,8 +149,9 @@ export class Player {
     if (cursors.left?.isDown)  this.tilt -= BALANCE.CORRECT_RATE * dt;
     if (cursors.right?.isDown) this.tilt += BALANCE.CORRECT_RATE * dt;
 
+    const wipeoutAt = environment?.balanceWipeoutAt ?? BALANCE.WIPEOUT_AT;
     this.tilt = Phaser_clamp(this.tilt, -1.25, 1.25);
-    if (Math.abs(this.tilt) >= BALANCE.WIPEOUT_AT) this.wiped = true;
+    if (Math.abs(this.tilt) >= wipeoutAt) this.wiped = true;
   }
 
   _handleSteer(dt, cursors, environment) {

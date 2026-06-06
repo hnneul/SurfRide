@@ -50,6 +50,7 @@ export const STAGES = [
       obstaclesPerMin: 20,
       fakeSignalRate:  0,
       compoundRate:    0,
+      balanceWipeoutAt: 1.18,
     },
     events: PATTERNS.STAGE_1,
   },

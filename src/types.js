@@ -42,6 +42,7 @@
  * @property {number} compoundRate       복합 신호 비율
  * @property {boolean} [nightMode]        야간(신호 가시성 저하)
  * @property {boolean} [screenShake]      상시 화면 흔들림
+ * @property {number} [balanceWipeoutAt]  와이프아웃 임계값(기본 BALANCE.WIPEOUT_AT)
  */
 
 /**
