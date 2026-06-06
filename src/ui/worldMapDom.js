@@ -115,7 +115,10 @@ function shellTemplate({ save, stages, state }) {
     <main class="world-map">
       <header class="world-map__head">
         <div>
-          <h1 class="world-map__title">세계지도</h1>
+          <h1 class="world-map__title">
+            <span class="sr-only">World Map</span>
+            <img class="world-map__title-logo" src="/world-map-title.png" alt="" draggable="false" />
+          </h1>
           <p class="world-map__subtitle">제주에서 오키나와와 필리핀해를 지나 태평양 끝으로 향하는 탐험 항로</p>
         </div>
         <dl class="world-map__stats" aria-label="진행 상황">

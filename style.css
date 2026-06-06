@@ -12,6 +12,18 @@ html, body {
   font-family: 'Segoe UI', sans-serif;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 #game-container {
   position: relative;
   width: 100vw;
@@ -431,15 +443,20 @@ html, body {
   gap: 20px;
 }
 .world-map__title {
-  font-size: clamp(32px, 4.4vw, 56px);
-  line-height: 1.02;
-  font-weight: 900;
-  letter-spacing: 0;
-  color: #fff;
-  text-shadow:
-    0 2px 0 rgba(6, 57, 96, 0.52),
-    0 6px 16px rgba(4, 40, 74, 0.58),
-    0 16px 36px rgba(4, 40, 74, 0.32);
+  line-height: 1;
+}
+.world-map__title-logo {
+  display: block;
+  width: clamp(230px, 29vw, 420px);
+  height: auto;
+  max-height: clamp(74px, 10vh, 124px);
+  object-fit: contain;
+  object-position: left center;
+  filter:
+    drop-shadow(0 3px 0 rgba(6, 57, 96, 0.34))
+    drop-shadow(0 12px 16px rgba(4, 40, 74, 0.36));
+  user-select: none;
+  pointer-events: none;
 }
 .world-map__subtitle {
   margin-top: 5px;
