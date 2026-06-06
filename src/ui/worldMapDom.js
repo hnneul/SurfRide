@@ -1,30 +1,33 @@
 // 세계지도 DOM 오버레이. Phaser 캔버스 위에 띄우고, 버튼 콜백으로 씬을 전환한다.
 // mountWorldMap(...) 는 { destroy } 를 반환한다.
 
+// 좌표(%)는 배경(world-map-pacific-route.png)의 지형 위치에 맞춰 배치한다.
+// 제주(좌상단) → 류큐·오키나와 → 필리핀해(중앙) → 마리아나 → 태평양 화산섬/폭풍/신전(우측).
+// 목적지 원이 섬을 가리지 않도록 각 노드는 해당 섬 "아래쪽" 해상에 둔다.
 const MAP_NODES = [
-  { id: 1,  x: 7,  y: 74 },
-  { id: 2,  x: 18, y: 62 },
-  { id: 3,  x: 28, y: 67 },
-  { id: 4,  x: 39, y: 55 },
-  { id: 5,  x: 49, y: 60 },
-  { id: 6,  x: 59, y: 47 },
-  { id: 7,  x: 69, y: 52 },
-  { id: 8,  x: 79, y: 39 },
-  { id: 9,  x: 87, y: 44 },
-  { id: 10, x: 93, y: 31 },
+  { id: 1,  x: 18, y: 32 }, // 제주 앞바다
+  { id: 2,  x: 25, y: 42 }, // 대한해협 / 규슈 남쪽
+  { id: 3,  x: 30, y: 54 }, // 류큐 열도
+  { id: 4,  x: 29, y: 70 }, // 오키나와
+  { id: 5,  x: 35, y: 80 }, // 대만 동쪽 / 필리핀해 입구
+  { id: 6,  x: 48, y: 63 }, // 필리핀해
+  { id: 7,  x: 65, y: 54 }, // 마리아나 방향
+  { id: 8,  x: 65, y: 32 }, // 태평양 화산섬
+  { id: 9,  x: 79, y: 42 }, // 태평양 폭풍 해역
+  { id: 10, x: 88, y: 29 }, // 태평양 신전
 ];
 
 const MAP_TEXTS = {
-  1: '첫 파도에 올라타는 출발 해역입니다.',
-  2: '연안의 생물 신호를 읽는 구간입니다.',
-  3: '큰 파도가 항로를 흔드는 남쪽 바다입니다.',
-  4: '바람과 가짜 신호가 시작되는 해역입니다.',
-  5: '암초 지대를 빠르게 통과해야 합니다.',
-  6: '태풍 전야의 리듬이 빨라지는 바다입니다.',
-  7: '밤바다에서 번개 신호를 구분해야 합니다.',
-  8: '화산 해역의 낯선 흐름이 밀려옵니다.',
-  9: '폭풍과 번개가 동시에 몰아칩니다.',
-  10: '모든 파도가 마지막 시험이 됩니다.',
+  1: '제주 앞바다에서 출발해 첫 파도와 항로 감각을 익힙니다.',
+  2: '대한해협을 건너 규슈 남쪽 물길의 거센 조류를 읽습니다.',
+  3: '류큐 열도를 따라 이어지는 산호초 사이 항로를 통과합니다.',
+  4: '오키나와 암초 지대에서 좁아진 통로를 헤쳐 나갑니다.',
+  5: '대만 동쪽을 지나 필리핀해 입구의 큰 너울을 넘습니다.',
+  6: '필리핀해 심해에서 태풍 전야의 빠른 리듬을 버팁니다.',
+  7: '마리아나 해구 위 깊고 어두운 바다의 신호를 따라갑니다.',
+  8: '태평양 화산섬 주변의 낯선 상승기류와 열기를 넘습니다.',
+  9: '북태평양 폭풍 해역에서 번개와 거친 파도를 피합니다.',
+  10: '태평양 끝 거대 파도의 신전에서 마지막 항해를 마칩니다.',
 };
 
 const TYPE_LABEL = Object.freeze({
@@ -112,8 +115,11 @@ function shellTemplate({ save, stages, state }) {
     <main class="world-map">
       <header class="world-map__head">
         <div>
-          <h1 class="world-map__title">세계지도</h1>
-          <p class="world-map__subtitle">제주에서 태평양 끝까지 이어지는 서프 항로</p>
+          <h1 class="world-map__title">
+            <span class="sr-only">World Map</span>
+            <img class="world-map__title-logo" src="/world-map-title.png" alt="" draggable="false" />
+          </h1>
+          <p class="world-map__subtitle">제주에서 오키나와와 필리핀해를 지나 태평양 끝으로 향하는 탐험 항로</p>
         </div>
         <dl class="world-map__stats" aria-label="진행 상황">
           ${statTemplate('별', `${stars} / ${stages.length * 3}`)}
@@ -124,7 +130,7 @@ function shellTemplate({ save, stages, state }) {
 
       <section class="world-map__body" aria-label="해역 선택">
         <div class="world-map__chart">
-          ${routeTemplate()}
+          ${routeTemplate({ unlocked: state.unlocked, stages })}
           <div class="world-map__nodes" data-map-nodes></div>
         </div>
       </section>
@@ -142,8 +148,10 @@ function statTemplate(label, value) {
     </div>`;
 }
 
-function smoothCurvePath(pts, tension = 0.18) {
-  let d = `M ${pts[0].x} ${pts[0].y}`;
+// 노드 사이를 부드러운 곡선 세그먼트(각각 독립된 path)로 끊어 그린다.
+// 완료/현재/잠금 구간을 서로 다른 스타일로 구분하기 위함.
+function smoothCurveSegments(pts, tension = 0.18) {
+  const segs = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[Math.max(0, i - 1)];
     const p1 = pts[i];
@@ -153,20 +161,26 @@ function smoothCurvePath(pts, tension = 0.18) {
     const cp1y = (p1.y + tension * (p2.y - p0.y)).toFixed(1);
     const cp2x = (p2.x - tension * (p3.x - p1.x)).toFixed(1);
     const cp2y = (p2.y - tension * (p3.y - p1.y)).toFixed(1);
-    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+    segs.push(`M ${p1.x} ${p1.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`);
   }
-  return d;
+  return segs;
 }
 
-function routeTemplate() {
+function routeTemplate({ unlocked, stages }) {
   const pts = MAP_NODES.map(node => ({ x: node.x * 10, y: node.y * 3.6 }));
-  const routePath = smoothCurvePath(pts);
+  const segs = smoothCurveSegments(pts);
+  const nextId = nextStageId(unlocked, stages);
+
+  const paths = segs.map((d, i) => {
+    const toId = MAP_NODES[i + 1].id; // 세그먼트 i 는 노드 i → i+1 을 잇는다
+    const toCleared = !!entryFor(unlocked, toId)?.cleared;
+    const segState = toCleared ? 'done' : toId === nextId ? 'active' : 'locked';
+    return `<path class="world-map-route__seg world-map-route__seg--${segState}" d="${d}" />`;
+  }).join('');
 
   return `
     <svg class="world-map-route" viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
-      <path class="world-map-route__shadow" d="${routePath}" />
-      <path class="world-map-route__line" d="${routePath}" />
-      <path class="world-map-route__dash" d="${routePath}" />
+      ${paths}
     </svg>`;
 }
 
@@ -180,9 +194,9 @@ function nodesTemplate({ stages, state }) {
     const playable = isPlayable(state.unlocked, stages, node.id);
     const selected = state.selectedId === node.id;
     const status = cleared ? 'cleared' : nextId === node.id ? 'next' : playable ? 'open' : 'locked';
-    const label = playable ? `${node.id}` : '잠김';
-    const stars = cleared ? `${'★'.repeat(entry.stars ?? 0)}${'☆'.repeat(3 - (entry.stars ?? 0))}` : '';
+    const glyph = cleared ? '✓' : String(node.id);
 
+    // 지도 위 텍스트는 최소화 — 이름표는 선택/현재 목적지에서만 CSS 로 노출한다.
     return `
       <button
         class="world-node world-node--${status}${selected ? ' is-selected' : ''}"
@@ -191,11 +205,10 @@ function nodesTemplate({ stages, state }) {
         data-stage-id="${node.id}"
         ${playable ? '' : 'disabled'}
         aria-pressed="${selected ? 'true' : 'false'}"
+        aria-label="${escapeHtml(`${node.id}구역 ${stage.name}`)}"
       >
-        <span class="world-node__island" aria-hidden="true"></span>
-        <span class="world-node__marker">${escapeHtml(label)}</span>
+        <span class="world-node__marker">${escapeHtml(glyph)}</span>
         <span class="world-node__name">${escapeHtml(stage.name)}</span>
-        <span class="world-node__stars">${escapeHtml(stars || (status === 'next' ? '다음 목적지' : ''))}</span>
       </button>`;
   }).join('');
 }
@@ -204,7 +217,7 @@ function summaryTemplate({ stages, state }) {
   const nextId = nextStageId(state.unlocked, stages);
   const message = nextId === null
     ? '모든 항로를 정복했습니다. 원하는 해역에서 기록을 갱신할 수 있습니다.'
-    : `${nextId}구역 ${stages[nextId - 1].name}${josa(stages[nextId - 1].name, '이', '가')} 다음 목적지입니다.`;
+    : `${nextId}구역 ${stages[nextId - 1].name}${josa(stages[nextId - 1].name, '이', '가')} 다음 목적지입니다. 제주에서 태평양으로 이어지는 항로를 하나씩 열어가세요.`;
 
   return `<p>${escapeHtml(message)}</p>`;
 }

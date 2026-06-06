@@ -31,7 +31,7 @@ export const OBSTACLE_META = Object.freeze({
   [ObstacleType.WHALE]:       { signalType: SignalType.SHADOW,   name: '고래',   signalName: '바닷속 그림자', hitboxW: 200, hitboxH: 100, avoid: 'move', visualScale: 1.0 },
   [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     name: '해파리', signalName: '빛나는 점', hitboxW:  70, hitboxH:  70, avoid: 'jump', visualScale: 1.0 },
   [ObstacleType.OCTOPUS]:     { signalType: SignalType.TENTACLE, name: '문어',   signalName: '다리 그림자', hitboxW: 120, hitboxH:  80, avoid: 'jump', visualScale: 1.0 },
-  [ObstacleType.LIGHTNING]:   { signalType: SignalType.FLASH,    name: '번개',   signalName: '섬광', hitboxW:  40, hitboxH: 300, avoid: 'move', visualScale: 1.15 },
+  [ObstacleType.LIGHTNING]:   { signalType: SignalType.FLASH,    name: '번개',   signalName: '섬광', hitboxW:  55, hitboxH: 160, avoid: 'move', visualScale: 1.15 },
 });
 
 // ─── SignalInstance (예고 신호 — 6종 고유 비주얼) ─────────────────────────────
@@ -226,11 +226,14 @@ class ObstacleInstance {
   }
 
   get hitbox() {
+    // 분출(reveal) 비례로 세로를 줄임 — 덜 솟은 동안엔 보이는 만큼만 판정(솟는 중 오판 방지)
+    const r = Math.max(0.001, Math.min(1, this.reveal ?? 1));
+    const h = this.hitboxH * r;
     return {
       x: this.x - this.hitboxW / 2,
-      y: this.y - this.hitboxH / 2,
+      y: this.y - h / 2,
       w: this.hitboxW,
-      h: this.hitboxH,
+      h,
     };
   }
 

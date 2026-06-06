@@ -13,6 +13,7 @@ const JUMP_SPEED  = 1180;   // 점프 초기 상승 속도 (px/s)
 // 체공을 원래 수준(~0.87s, 안 붕 뜨게)으로 되돌리고, 대신 분출 ACTIVE를 줄여
 // 위협을 ~0.61s로 낮춰 양쪽을 만나게 함(ERUPT_ACTIVE_MS와 함께 튜닝).
 const GRAVITY     = 2700;   // 점프 중력 (px/s²)
+const JUMP_BUFFER_MS = 120; // 착지 직전 이 시간(ms) 내 누른 점프를 기억했다가 착지 순간 발동
 
 export class Player {
   constructor(scene) {
@@ -20,7 +21,7 @@ export class Player {
 
     this.maxHealth = MAX_HEALTH;
     this.hitboxW = 58;
-    this.hitboxH = 88;
+    this.hitboxH = 56;   // 서퍼 보이는 깊이(~58px)에 맞춤 — 세로 회피가 시각과 일치
 
     this.shadow = scene.add.ellipse(0, 0, 82, 18, 0x06182c, 0.34).setDepth(1.7);
 
@@ -62,6 +63,8 @@ export class Player {
     this.jumpVel    = 0;
     this.isJumping  = false;
     this.isGrounded = true;
+    this._spacePrev = false;   // 점프 엣지 감지(홀드 연사 방지)
+    this._jumpBufferMs = 0;    // 점프 버퍼(착지 직전 입력 보존)
 
     // 균형(밸런스): tilt ∈ [-1,+1], 0이 안정. 한계 초과 시 와이프아웃.
     this.tilt       = 0;
@@ -84,7 +87,7 @@ export class Player {
   get hitbox() {
     return {
       x: this.x - this.hitboxW / 2,
-      y: (this.y - 12) - this.hitboxH / 2,
+      y: (this.y - 6) - this.hitboxH / 2,
       w: this.hitboxW,
       h: this.hitboxH,
     };
@@ -94,7 +97,7 @@ export class Player {
   get groundHitbox() {
     return {
       x: this.x - this.hitboxW / 2,
-      y: (this.baseY - 12) - this.hitboxH / 2,
+      y: (this.baseY - 6) - this.hitboxH / 2,
       w: this.hitboxW,
       h: this.hitboxH,
     };
@@ -118,7 +121,7 @@ export class Player {
 
     this._handleSteer(dt, cursors, environment);
     this._handleBalance(dt, cursors, environment);
-    this._handleJump(spaceKey, environment);
+    this._handleJump(dt, spaceKey, environment);
     this._applyPhysics(dt, environment);
     this._render(deltaMs);
   }
@@ -159,15 +162,29 @@ export class Player {
     this.vSteer = Phaser_clamp(this.vSteer, -STEER_MAX, STEER_MAX);
     this.baseY += this.vSteer * dt;
 
-    if (this.baseY < RIDE_TOP_Y)    { this.baseY = RIDE_TOP_Y;    if (this.vSteer < 0) this.vSteer = 0; }
-    if (this.baseY > RIDE_BOTTOM_Y) { this.baseY = RIDE_BOTTOM_Y; if (this.vSteer > 0) this.vSteer = 0; }
+    // 가동 폭 — 기본은 RIDE 전체. 암초 지대(narrowLane)에선 environment가 좁은 통로 경계를 준다.
+    const laneTop = environment?.laneTopY ?? RIDE_TOP_Y;
+    const laneBot = environment?.laneBottomY ?? RIDE_BOTTOM_Y;
+    if (this.baseY < laneTop) { this.baseY = laneTop; if (this.vSteer < 0) this.vSteer = 0; }
+    if (this.baseY > laneBot) { this.baseY = laneBot; if (this.vSteer > 0) this.vSteer = 0; }
   }
 
-  _handleJump(spaceKey, environment) {
-    if (spaceKey.isDown && this.isGrounded) {
+  // 누른 '순간'에만 버퍼 충전(엣지) → 홀드 연사 방지 유지.
+  // 버퍼는 착지 직전에 누른 입력을 잠깐 보존했다가 착지 순간 점프를 발동시킨다.
+  _handleJump(dt, spaceKey, environment) {
+    const pressed = !!spaceKey?.isDown;
+    if (pressed && !this._spacePrev) this._jumpBufferMs = JUMP_BUFFER_MS;
+    this._spacePrev = pressed;
+
+    if (this._jumpBufferMs <= 0) return;
+
+    if (this.isGrounded) {
       this.jumpVel    = JUMP_SPEED * (environment?.jumpBoost ?? 1);
       this.isJumping  = true;
       this.isGrounded = false;
+      this._jumpBufferMs = 0;
+    } else {
+      this._jumpBufferMs = Math.max(0, this._jumpBufferMs - dt * 1000);
     }
   }
 
