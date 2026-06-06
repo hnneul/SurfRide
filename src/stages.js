@@ -132,6 +132,7 @@ export const STAGES = [
       obstaclesPerMin: 28,
       fakeSignalRate:  0.12,
       compoundRate:    0.25,
+      squall:          true,   // 태풍 전야: 물보라가 주기적으로 시야를 흐림
     },
     events: PATTERNS.STAGE_6,
   },
@@ -165,6 +166,7 @@ export const STAGES = [
       obstaclesPerMin: 32,
       fakeSignalRate:  0.15,
       compoundRate:    0.35,
+      steam:           true,   // 화산 해역: 수증기가 주기적으로 시야를 흐림
     },
     events: PATTERNS.STAGE_8,
   },
