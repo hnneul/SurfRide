@@ -21,7 +21,7 @@ export class Player {
 
     this.maxHealth = MAX_HEALTH;
     this.hitboxW = 58;
-    this.hitboxH = 56;   // 서퍼 보이는 깊이(~58px)에 맞춤 — 세로 회피가 시각과 일치
+    this.hitboxH = 46;   // [HIT] 데이터 기준 — 서퍼 보드 깊이에 맞춰 세로 판정=시각 정렬
 
     this.shadow = scene.add.ellipse(0, 0, 82, 18, 0x06182c, 0.34).setDepth(1.7);
 
