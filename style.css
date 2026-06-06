@@ -620,9 +620,9 @@ html, body {
   transition: transform 0.16s ease, filter 0.16s ease;
 }
 .world-node--stage-7 .world-node__island {
-  top: -24px;
+  top: -44px;
   width: 124px;
-  height: 104px;
+  height: 124px;
   border-radius: 0;
   background: url('/world-map-dioramas/stage-7-pacific-night.png') center/contain no-repeat;
   box-shadow: none;
