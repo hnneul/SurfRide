@@ -30,14 +30,22 @@ export class Reef {
     return new THREE.Mesh(geo, mat);
   }
 
-  // state.reef = { topY, bottomY } (게임 좌표) | null
+  // state.reef = { topY, bottomY, style, hideTop } (게임 좌표) | null
+  // style: 'reef'(암초·양쪽 벽) | 'wave'(추격 파도·아래만). hideTop이면 위 벽 숨김.
   sync(reef) {
     if (!reef) { this.group.visible = false; return; }
     this.group.visible = true;
-    const topZ = rideY2WorldZ(reef.topY);     // 통로 위 경계
-    const botZ = rideY2WorldZ(reef.bottomY);  // 통로 아래 경계
-    this._placeWall(this.top,    RIDE_Z_FAR - 2, topZ);      // 통로 위쪽 암초
-    this._placeWall(this.bottom, botZ, RIDE_Z_NEAR + 2);     // 통로 아래쪽 암초
+    const color = reef.style === 'wave' ? 0x4fb8d6 : 0x4a5a4c;
+    this.top.material.color.setHex(color);
+    this.bottom.material.color.setHex(color);
+
+    if (reef.hideTop) {
+      this.top.visible = false;
+    } else {
+      this.top.visible = true;
+      this._placeWall(this.top, RIDE_Z_FAR - 2, rideY2WorldZ(reef.topY));   // 위쪽 벽
+    }
+    this._placeWall(this.bottom, rideY2WorldZ(reef.bottomY), RIDE_Z_NEAR + 2);  // 아래쪽(파도/암초)
   }
 
   _placeWall(mesh, zA, zB) {
