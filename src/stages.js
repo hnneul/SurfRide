@@ -200,6 +200,7 @@ export const STAGES = [
       compoundRate:    0.5,
       nightMode:       true,
       screenShake:     true,
+      updraft:         true,   // 모든 기믹 결합: 화산 상승기류(점프대)도 켬
     },
     events: PATTERNS.STAGE_10,
   },
