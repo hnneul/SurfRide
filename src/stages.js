@@ -82,6 +82,7 @@ export const STAGES = [
       obstaclesPerMin: 22,
       fakeSignalRate:  0,
       compoundRate:    0.1,
+      chaseWave:       true,   // 추격 파도: 주기적으로 아래 위험구간을 잠식
     },
     events: PATTERNS.STAGE_3,
   },

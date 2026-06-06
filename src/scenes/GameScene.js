@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { LOGICAL_WIDTH, LOGICAL_HEIGHT, fracToRideY, rideYToFrac } from '../constants.js';
+import { LOGICAL_WIDTH, LOGICAL_HEIGHT, RIDE_TOP_Y, fracToRideY, rideYToFrac } from '../constants.js';
 import { Player } from '../player.js';
 import { ObstacleManager } from '../obstacle.js';
 import { ScoreManager } from '../score.js';
@@ -42,6 +42,9 @@ const LANDING_JITTER_BY_STAGE = Object.freeze({
 
 const REEF_PERIOD_MS = 11_000;   // 암초 지대: 이벤트 주기(이 간격마다 한 번 발동)
 const REEF_ACTIVE_MS = 4_000;    // 한 번 발동 길이(좁아짐 → 최협 → 풀림)
+
+const CHASE_PERIOD_MS = 12_000;  // 추격 파도: 이벤트 주기
+const CHASE_ACTIVE_MS = 4_500;   // 한 번 밀려옴 길이(차오름 → 최고 → 빠짐)
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super({ key: 'GameScene' }); }
@@ -180,7 +183,8 @@ export default class GameScene extends Phaser.Scene {
       signals:      this.obstacleManager.signals,
       goldenFishes: this.goldenFish.fishes,
       reef: this.stageGimmicks?.reefActive
-        ? { topY: this.stageGimmicks.laneTopY, bottomY: this.stageGimmicks.laneBottomY }
+        ? { topY: this.stageGimmicks.laneTopY, bottomY: this.stageGimmicks.laneBottomY,
+            style: this.stageGimmicks.reefStyle, hideTop: this.stageGimmicks.hideTop }
         : null,
     });
     this.hud?.update({
@@ -315,9 +319,12 @@ export default class GameScene extends Phaser.Scene {
       jumpBoost: 1,
       updraftLift: 0,
       narrowLane: !!difficulty.narrowLane,
+      chaseWave: !!difficulty.chaseWave,
       laneTopY: null,
       laneBottomY: null,
       reefActive: false,
+      reefStyle: 'reef',
+      hideTop: false,
       label: null,
     };
     this._nextStormRumble = 4_800;
@@ -341,6 +348,8 @@ export default class GameScene extends Phaser.Scene {
     fx.laneTopY = null;
     fx.laneBottomY = null;
     fx.reefActive = false;
+    fx.reefStyle = 'reef';
+    fx.hideTop = false;
 
     if (fx.windStrength > 0) {
       const base = Math.sin(t * 0.0011 + fx.seed) * 0.22;
@@ -401,6 +410,21 @@ export default class GameScene extends Phaser.Scene {
         fx.laneBottomY = fracToRideY(Math.min(1, center + half));
         fx.reefActive  = ease > 0.15;   // 충분히 좁아졌을 때만 암초 시각·라벨
         if (fx.reefActive) labels.push('좁은 수로 · 암초');
+      }
+    }
+
+    if (fx.chaseWave) {
+      // 추격 파도 — 주기마다 아래(위험구간)에서 파도가 차올라 가동 폭 하단을 잠식. 위로 피해야.
+      const cycle = (t + fx.seed * 800) % CHASE_PERIOD_MS;
+      if (cycle < CHASE_ACTIVE_MS) {
+        const ease       = Math.sin((cycle / CHASE_ACTIVE_MS) * Math.PI);  // 0→1→0 (차오름·최고·빠짐)
+        const bottomFrac = 1 - ease * 0.45;                                // 1(자유) → 0.55(많이 잠식)
+        fx.laneTopY    = RIDE_TOP_Y;          // 위는 자유
+        fx.laneBottomY = fracToRideY(bottomFrac);
+        fx.reefActive  = ease > 0.12;
+        fx.reefStyle   = 'wave';
+        fx.hideTop     = true;
+        if (fx.reefActive) labels.push('추격 파도 — 위로 피해!');
       }
     }
 
