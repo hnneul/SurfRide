@@ -164,9 +164,9 @@ function routeTemplate() {
 
   return `
     <svg class="world-map-route" viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
-      <path class="world-map-route__shadow" d="${routePath}" />
-      <path class="world-map-route__line" d="${routePath}" />
-      <path class="world-map-route__dash" d="${routePath}" />
+      <path class="world-map-route__halo" d="${routePath}" stroke="rgba(255,255,255,0.18)" stroke-width="14" stroke-dasharray="2 22" />
+      <path class="world-map-route__line" d="${routePath}" stroke="rgba(255,255,255,0.82)" stroke-width="3" stroke-dasharray="10 7" />
+      <path class="world-map-route__dash" d="${routePath}" stroke="rgba(180,230,255,0.55)" stroke-width="1.5" stroke-dasharray="10 7" stroke-dashoffset="-9" />
     </svg>`;
 }
 

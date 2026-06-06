@@ -505,18 +505,19 @@ html, body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.world-map-route__shadow {
-  stroke: rgba(4, 59, 94, 0.25);
-  stroke-width: 22;
+@keyframes routeHalo {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -24; }
 }
-.world-map-route__line {
-  stroke: rgba(255, 255, 255, 0.86);
-  stroke-width: 8;
+@keyframes routeWave {
+  from { stroke-dashoffset: -9; }
+  to { stroke-dashoffset: -33; }
+}
+.world-map-route__halo {
+  animation: routeHalo 1.3s linear infinite;
 }
 .world-map-route__dash {
-  stroke: var(--sun);
-  stroke-width: 4;
-  stroke-dasharray: 18 16;
+  animation: routeWave 1.3s linear infinite;
 }
 
 .world-map__nodes {
