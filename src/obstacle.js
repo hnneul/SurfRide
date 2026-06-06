@@ -26,11 +26,11 @@ export const SignalType = Object.freeze({
 //   줄이는 튜닝 값(렌더 전용, three/obstacles.js가 사용). 1.0=메시 설계 크기. 얇은 상어 지느러미는
 //   넓은 hitbox를 못 채워 키움. 느낌 기반이니 플레이하며 조정.
 export const OBSTACLE_META = Object.freeze({
-  [ObstacleType.FLYING_FISH]: { signalType: SignalType.SPLASH,   name: '날치',   signalName: '물보라', hitboxW:  80, hitboxH:  40, avoid: 'jump', visualScale: 1.0 },
-  [ObstacleType.SHARK]:       { signalType: SignalType.FIN,      name: '상어',   signalName: '등지느러미', hitboxW: 100, hitboxH:  60, avoid: 'jump', visualScale: 1.3 },
+  [ObstacleType.FLYING_FISH]: { signalType: SignalType.SPLASH,   name: '날치',   signalName: '물보라', hitboxW:  80, hitboxH:  36, avoid: 'jump', visualScale: 1.0 },
+  [ObstacleType.SHARK]:       { signalType: SignalType.FIN,      name: '상어',   signalName: '등지느러미', hitboxW: 100, hitboxH:  48, avoid: 'jump', visualScale: 1.3 },
   [ObstacleType.WHALE]:       { signalType: SignalType.SHADOW,   name: '고래',   signalName: '바닷속 그림자', hitboxW: 200, hitboxH: 100, avoid: 'move', visualScale: 1.0 },
-  [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     name: '해파리', signalName: '빛나는 점', hitboxW:  70, hitboxH:  70, avoid: 'jump', visualScale: 1.0 },
-  [ObstacleType.OCTOPUS]:     { signalType: SignalType.TENTACLE, name: '문어',   signalName: '다리 그림자', hitboxW: 120, hitboxH:  80, avoid: 'jump', visualScale: 1.0 },
+  [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     name: '해파리', signalName: '빛나는 점', hitboxW:  70, hitboxH:  50, avoid: 'jump', visualScale: 1.0 },
+  [ObstacleType.OCTOPUS]:     { signalType: SignalType.TENTACLE, name: '문어',   signalName: '다리 그림자', hitboxW: 120, hitboxH:  72, avoid: 'jump', visualScale: 1.0 },
   [ObstacleType.LIGHTNING]:   { signalType: SignalType.FLASH,    name: '번개',   signalName: '섬광', hitboxW:  55, hitboxH: 160, avoid: 'move', visualScale: 1.15 },
 });
 
