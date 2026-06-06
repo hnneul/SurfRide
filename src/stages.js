@@ -54,10 +54,10 @@ export const STAGES = [
     events: PATTERNS.STAGE_1,
   },
 
-  // ── Stage 2: 제주 연안 / 생물 등장 ──────────────────────────────────────
+  // ── Stage 2: 규슈 남쪽 물길 / 생물 등장 ─────────────────────────────────
   {
     id:          2,
-    name:        '제주 연안',
+    name:        '규슈 남쪽 물길',
     theme:       'jeju_coast',
     duration:    65_000,
     scrollSpeed: 540,
@@ -70,10 +70,10 @@ export const STAGES = [
     events: PATTERNS.STAGE_2,
   },
 
-  // ── Stage 3: 제주 남쪽 해역 / 첫 큰 파도 ────────────────────────────────
+  // ── Stage 3: 류큐 열도 산호길 / 첫 큰 파도 ──────────────────────────────
   {
     id:          3,
-    name:        '제주 남쪽 해역',
+    name:        '류큐 열도 산호길',
     theme:       'south_jeju',
     duration:    65_000,
     scrollSpeed: 580,
@@ -87,10 +87,10 @@ export const STAGES = [
     events: PATTERNS.STAGE_3,
   },
 
-  // ── Stage 4: 동중국해 / 바람의 바다 ─────────────────────────────────────
+  // ── Stage 4: 오키나와 암초 / 바람의 바다 ────────────────────────────────
   {
     id:          4,
-    name:        '동중국해',
+    name:        '오키나와 암초',
     theme:       'east_china_sea',
     duration:    70_000,
     scrollSpeed: 620,
@@ -103,10 +103,10 @@ export const STAGES = [
     events: PATTERNS.STAGE_4,
   },
 
-  // ── Stage 5: 오키나와 인근 해역 / 암초 지대 ─────────────────────────────
+  // ── Stage 5: 필리핀해 입구 / 암초 지대 ──────────────────────────────────
   {
     id:          5,
-    name:        '오키나와 인근 해역',
+    name:        '필리핀해 입구',
     theme:       'okinawa',
     duration:    70_000,
     scrollSpeed: 650,
@@ -120,10 +120,10 @@ export const STAGES = [
     events: PATTERNS.STAGE_5,
   },
 
-  // ── Stage 6: 필리핀해 초입 / 태풍 전야 ──────────────────────────────────
+  // ── Stage 6: 필리핀해 심해 / 태풍 전야 ──────────────────────────────────
   {
     id:          6,
-    name:        '필리핀해 초입',
+    name:        '필리핀해 심해',
     theme:       'philippines',
     duration:    72_000,
     scrollSpeed: 700,
@@ -137,10 +137,10 @@ export const STAGES = [
     events: PATTERNS.STAGE_6,
   },
 
-  // ── Stage 7: 태평양 밤바다 / 야간 항해 ──────────────────────────────────
+  // ── Stage 7: 마리아나 해구 / 야간 항해 ──────────────────────────────────
   {
     id:          7,
-    name:        '태평양 밤바다',
+    name:        '마리아나 해구',
     theme:       'pacific_night',
     duration:    75_000,
     scrollSpeed: 730,
@@ -154,10 +154,10 @@ export const STAGES = [
     events: PATTERNS.STAGE_7,
   },
 
-  // ── Stage 8: 태평양 화산 해역 / 이질적 바다 ─────────────────────────────
+  // ── Stage 8: 태평양 화산섬 / 이질적 바다 ────────────────────────────────
   {
     id:          8,
-    name:        '태평양 화산 해역',
+    name:        '태평양 화산섬',
     theme:       'volcanic',
     duration:    75_000,
     scrollSpeed: 760,
@@ -171,10 +171,10 @@ export const STAGES = [
     events: PATTERNS.STAGE_8,
   },
 
-  // ── Stage 9: 북태평양 폭풍 해역 / 극한 해역 ─────────────────────────────
+  // ── Stage 9: 폭풍 해역 / 극한 해역 ──────────────────────────────────────
   {
     id:          9,
-    name:        '북태평양 폭풍 해역',
+    name:        '폭풍 해역',
     theme:       'storm',
     duration:    78_000,
     scrollSpeed: 800,
@@ -188,10 +188,10 @@ export const STAGES = [
     events: PATTERNS.STAGE_9,
   },
 
-  // ── Stage 10: 괴물 파도 해역 / 최종 도전 ────────────────────────────────
+  // ── Stage 10: 태평양 신전 / 최종 도전 ───────────────────────────────────
   {
     id:          10,
-    name:        '괴물 파도 해역',
+    name:        '태평양 신전',
     theme:       'final',
     duration:    80_000,
     scrollSpeed: 850,
