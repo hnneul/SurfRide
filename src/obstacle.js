@@ -475,8 +475,7 @@ export class ObstacleManager {
       const hb = player.groundHitbox;
       if (!this._aabb(hb, obs.hitbox) && this._aabb(hb, obs.grazebox)) obs.grazed = true;
       // 퍼펙트 점프는 '점프로 넘는' 장애물에만 — 고래·번개(move)는 점프로 못 넘음
-      const vNear = Math.abs(obs.targetY - player.baseY) < obs.hitboxH / 2 + 60;
-      if (obs.avoidMode === 'jump' && !player.isGrounded && vNear) obs.jumpedOver = true;
+      if (this._isJumpClear(obs, player)) obs.jumpedOver = true;
     }
     if (!obs.resolved && !obs.hitByPlayer && obs.isResolved()) {
       obs.resolved = true;
@@ -548,8 +547,16 @@ export class ObstacleManager {
   _hitsPlayer(obs, player) {
     if (!this._aabb(player.groundHitbox, obs.hitbox)) return false;   // 다른 레인이면 안전
     if (obs.avoidMode === 'move') return true;                        // 점프 무효(고래·번개) — 레인 겹치면 피격
-    const clearH = (player.hitboxH + obs.hitbox.h) / 2;               // 넘는 데 필요한 점프 높이(px)
-    return player.jumpOffset <= clearH;                               // 충분히 못 떴으면 피격
+    if (obs.jumpedOver) return false;                                  // 퍼펙트 점프로 넘긴 장애물은 재충돌 없음
+    return !this._isJumpClear(obs, player);                            // 충분히 못 떴으면 피격
+  }
+
+  _isJumpClear(obs, player) {
+    if (obs.avoidMode !== 'jump' || player.isGrounded) return false;
+    const vNear = Math.abs(obs.targetY - player.baseY) < obs.hitboxH / 2 + 60;
+    if (!vNear) return false;
+    const clearH = (player.hitboxH + obs.hitbox.h) / 2;                // 넘는 데 필요한 점프 높이(px)
+    return player.jumpOffset > clearH;
   }
 
   // 이번 프레임에 안전 통과로 확정된 장애물들(점수 처리용). 큐를 비운다.
