@@ -578,11 +578,11 @@ html, body {
 .world-node__marker {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 100%;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 20px;
+  height: 20px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.92);
@@ -593,6 +593,7 @@ html, body {
   font-size: 14px;
   font-weight: 900;
   color: var(--ink);
+  opacity: 0.8;
   transition: transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 }
 .world-node:hover .world-node__marker { transform: translate(-50%, -50%) scale(1.1); }
@@ -616,6 +617,21 @@ html, body {
   pointer-events: none;
   transition: opacity 0.16s ease;
 }
+.world-node--label-top .world-node__name {
+  top: auto;
+  bottom: calc(50% + 21px);
+}
+.world-node--label-left .world-node__name {
+  left: auto;
+  right: calc(50% + 21px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.world-node--label-right .world-node__name {
+  left: calc(50% + 21px);
+  top: 50%;
+  transform: translateY(-50%);
+}
 .world-node.is-selected .world-node__name,
 .world-node--next .world-node__name { opacity: 1; }
 
@@ -627,8 +643,8 @@ html, body {
 
 /* 현재 목적지 — 조금 더 크게 + 맥동으로 강조 */
 .world-node--next .world-node__marker {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   background: var(--sun);
   border-color: #fff;
   color: #4a2d00;

@@ -3,18 +3,18 @@
 
 // 좌표(%)는 배경(world-map-pacific-route.png)의 판타지 지형 위치에 맞춰 배치한다.
 // 실제 지명보다 이미지에 보이는 산호초, 관문, 난파선, 화산, 폭풍, 신전 오브젝트를 우선한다.
-// 목적지 원이 섬을 가리지 않도록 각 노드는 해당 섬 "아래쪽" 해상에 둔다.
+// 목적지 원이 섬을 가리지 않도록 각 노드는 해당 섬 주변의 빈 해상에 둔다.
 const MAP_NODES = [
-  { id: 1,  x: 18, y: 32 }, // 제주 앞바다: 출발 해안
-  { id: 2,  x: 25, y: 42 }, // 산호초 물길: 작은 산호섬
-  { id: 3,  x: 30, y: 54 }, // 고대 관문 해역: 유적 관문
-  { id: 4,  x: 29, y: 70 }, // 버섯 산호섬: 버섯 산호 군락
-  { id: 5,  x: 35, y: 80 }, // 난파선 암초: 난파선과 암초
-  { id: 6,  x: 48, y: 63 }, // 심해 수정 동굴: 푸른 수정 동굴
-  { id: 7,  x: 65, y: 54 }, // 마리아나 심연: 어두운 심연과 수정 구체
-  { id: 8,  x: 65, y: 32 }, // 화산섬 해역: 분화하는 화산섬
-  { id: 9,  x: 79, y: 42 }, // 폭풍 소용돌이: 번개 폭풍과 소용돌이
-  { id: 10, x: 88, y: 29 }, // 태평양 신전: 거대한 파도의 신전
+  { id: 1,  x: 18.8, y: 27.4 }, // 제주 앞바다: 출발 해안
+  { id: 2,  x: 25.0, y: 37.6 }, // 산호초 물길: 작은 산호섬
+  { id: 3,  x: 31.5, y: 47.1 }, // 고대 관문 해역: 유적 관문
+  { id: 4,  x: 28.4, y: 64.8, label: 'top' }, // 버섯 산호섬: 버섯 산호 군락
+  { id: 5,  x: 33.0, y: 77.5, label: 'top' }, // 난파선 암초: 난파선과 암초
+  { id: 6,  x: 48.6, y: 60.1 }, // 심해 수정 동굴: 푸른 수정 동굴
+  { id: 7,  x: 65.2, y: 48.5 }, // 마리아나 심연: 어두운 심연과 수정 구체
+  { id: 8,  x: 67.0, y: 27.0 }, // 화산섬 해역: 분화하는 화산섬
+  { id: 9,  x: 79.2, y: 36.4 }, // 폭풍 소용돌이: 번개 폭풍과 소용돌이
+  { id: 10, x: 88.2, y: 25.5 }, // 태평양 신전: 거대한 파도의 신전
 ];
 
 const MAP_TEXTS = {
@@ -130,7 +130,6 @@ function shellTemplate({ save, stages, state }) {
 
       <section class="world-map__body" aria-label="해역 선택">
         <div class="world-map__chart">
-          ${routeTemplate({ unlocked: state.unlocked, stages })}
           <div class="world-map__nodes" data-map-nodes></div>
         </div>
       </section>
@@ -167,7 +166,7 @@ function smoothCurveSegments(pts, tension = 0.18) {
 }
 
 function routeTemplate({ unlocked, stages }) {
-  const pts = MAP_NODES.map(node => ({ x: node.x * 10, y: node.y * 3.6 }));
+  const pts = MAP_NODES.map(node => ({ x: node.x, y: node.y }));
   const segs = smoothCurveSegments(pts);
   const nextId = nextStageId(unlocked, stages);
 
@@ -179,7 +178,7 @@ function routeTemplate({ unlocked, stages }) {
   }).join('');
 
   return `
-    <svg class="world-map-route" viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
+    <svg class="world-map-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       ${paths}
     </svg>`;
 }
@@ -197,9 +196,11 @@ function nodesTemplate({ stages, state }) {
     const glyph = cleared ? '✓' : String(node.id);
 
     // 지도 위 텍스트는 최소화 — 이름표는 선택/현재 목적지에서만 CSS 로 노출한다.
+    const labelClass = node.label ? ` world-node--label-${node.label}` : '';
+
     return `
       <button
-        class="world-node world-node--${status}${selected ? ' is-selected' : ''}"
+        class="world-node world-node--${status}${labelClass}${selected ? ' is-selected' : ''}"
         style="--x:${node.x}%; --y:${node.y}%;"
         data-act="select"
         data-stage-id="${node.id}"

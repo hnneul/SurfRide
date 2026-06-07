@@ -15,14 +15,16 @@ const WAVE_LAYERS = [
   { z: 9, y: 0.40, seg: 12, speed: 1.5, width: 120, depth: 30, amp: 1.0, opacity: 1.0 },   // 근경
 ];
 
+// jeju 민트 3D 바다 — opacity를 ~0.45–0.52(반투명)로 낮춰 '반투명 베일'로 쓴다. 더는 사진 바다를
+// 불투명하게 덮지 않고(opacity<1 → 전부 transparent·depthWrite:false), 그 위에서 시안 너울이
+// 움직이되 사진 배경이 비쳐 보이게 한다. far가 베이스라 살짝 진하고 near로 갈수록 옅어진다.
 const JEJU_WAVE_LAYERS = [
-  // far: 불투명(opacity 1.0 → depthWrite:true) 기반판. 수면 바로 아래(y -0.12)에서 마루 crest ~0.34.
-  // far edge z=-4 → 화면 44.0%로 투영돼 그림 수평선(45.5%)보다 1.5% 위 → 정적 청록 픽셀 전체를 가림.
+  // far: 반투명 베이스 베일. 수면 바로 아래(y -0.12)에서 마루 crest ~0.34.
   { z: 12.0, y: -0.12, seg: 24, speed: 0.62, width: 150, depth: 32, amp: 0.38, opacity: 1.0 },
-  // mid: 불투명 기반판. far edge z=-1.5 → 화면 46.3%(수평선 아래) → 중간 너울 디테일 추가.
+  // mid: 중간 너울 — 사진 위로 시안 톤을 살짝만.
   { z:  5.5, y:  0.12, seg: 18, speed: 0.84, width: 132, depth: 14, amp: 0.52, opacity: 1.0 },
-  // near: 반투명(0.88) 유지 → 마루 crest 0.58 < WATER_Y 0.7 → 장애물(FLYING_FISH) 위를 지나가되 흐리게만 함.
-  { z:  9.0, y:  0.30, seg: 14, speed: 1.02, width: 132, depth: 20, amp: 0.52, opacity: 0.88 },
+  // near: 가장 옅게 → 마루 crest 0.58 < WATER_Y 0.7 → 장애물(FLYING_FISH) 위를 지나가되 거의 안 가림.
+  { z:  9.0, y:  0.30, seg: 14, speed: 1.02, width: 132, depth: 20, amp: 0.52, opacity: 1.0 },
 ];
 
 // 3D 물색 오버라이드(테마별, 원경→근경). 없으면 theme.sea[0]에서 밝기 램프로 파생.
