@@ -21,15 +21,16 @@ export const SignalType = Object.freeze({
   FLASH:    'FLASH',
 });
 
-// avoid: 'jump' = 점프로 넘을 수 있음(낮은 장애물) | 'move' = 점프 무효, 미리 위치 이동해야 함
+// avoid: 'jump' = 점프로 넘기(낮은 장애물) | 'move' = 점프 무효, ↑↓로 위치 이동
+//        'dive' = 잠수로 통과(위에 뜬 장애물) — Shift 덕다이브, 안 하면 ↑↓로 비켜야
 // visualScale: 3D 메시 크기 배율 — 보이는 크기를 hitbox에 맞춰 '안 닿았는데 맞음/닿았는데 안 맞음'을
 //   줄이는 튜닝 값(렌더 전용, three/obstacles.js가 사용). 1.0=메시 설계 크기. 얇은 상어 지느러미는
 //   넓은 hitbox를 못 채워 키움. 느낌 기반이니 플레이하며 조정.
 export const OBSTACLE_META = Object.freeze({
   [ObstacleType.FLYING_FISH]: { signalType: SignalType.SPLASH,   name: '날치',   signalName: '물보라', hitboxW:  80, hitboxH:  36, avoid: 'jump', visualScale: 1.0 },
-  [ObstacleType.SHARK]:       { signalType: SignalType.FIN,      name: '상어',   signalName: '등지느러미', hitboxW: 100, hitboxH:  48, avoid: 'jump', visualScale: 1.3 },
+  [ObstacleType.SHARK]:       { signalType: SignalType.FIN,      name: '상어',   signalName: '등지느러미', hitboxW: 100, hitboxH:  48, avoid: 'move', visualScale: 1.3 },
   [ObstacleType.WHALE]:       { signalType: SignalType.SHADOW,   name: '고래',   signalName: '바닷속 그림자', hitboxW: 200, hitboxH: 100, avoid: 'move', visualScale: 1.0 },
-  [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     name: '해파리', signalName: '빛나는 점', hitboxW:  70, hitboxH:  50, avoid: 'jump', visualScale: 1.0 },
+  [ObstacleType.JELLYFISH]:   { signalType: SignalType.GLOW,     name: '해파리', signalName: '빛나는 점', hitboxW:  70, hitboxH:  50, avoid: 'dive', visualScale: 1.0 },
   [ObstacleType.OCTOPUS]:     { signalType: SignalType.TENTACLE, name: '문어',   signalName: '다리 그림자', hitboxW: 120, hitboxH:  72, avoid: 'jump', visualScale: 1.0 },
   [ObstacleType.LIGHTNING]:   { signalType: SignalType.FLASH,    name: '번개',   signalName: '섬광', hitboxW:  55, hitboxH: 160, avoid: 'move', visualScale: 1.15 },
 });
@@ -600,9 +601,10 @@ export class ObstacleManager {
   // 점프는 '장애물을 넘었는지' 높이 게이트로 분리한다.
   _hitsPlayer(obs, player) {
     if (!this._aabb(player.groundHitbox, obs.hitbox)) return false;   // 다른 레인이면 안전
-    if (obs.avoidMode === 'move') return true;                        // 점프 무효(고래·번개) — 레인 겹치면 피격
+    if (obs.avoidMode === 'move') return true;                        // 점프 무효(상어·고래·번개) — 레인 겹치면 피격
+    if (obs.avoidMode === 'dive') return !player.diving;              // 잠수 중이면 통과(해파리) — 안 하면 레인 비켜야
     if (obs.jumpedOver) return false;                                  // 퍼펙트 점프로 넘긴 장애물은 재충돌 없음
-    return !this._isJumpClear(obs, player);                            // 충분히 못 떴으면 피격
+    return !this._isJumpClear(obs, player);                            // jump: 충분히 못 떴으면 피격
   }
 
   _isJumpClear(obs, player) {

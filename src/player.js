@@ -1,5 +1,5 @@
 import {
-  LOGICAL_WIDTH, RIDE_TOP_Y, RIDE_BOTTOM_Y, isDangerY, zoneMultiplierForY, BALANCE, TRICK,
+  LOGICAL_WIDTH, RIDE_TOP_Y, RIDE_BOTTOM_Y, isDangerY, zoneMultiplierForY, BALANCE, TRICK, DIVE,
   MAX_HEALTH, HIT_IFRAME_MS,
 } from './constants.js';
 
@@ -78,6 +78,13 @@ export class Player {
     this.trickBotched   = false; // 이번 프레임 착지 실패(휘청)
     this.staggerMs      = 0;     // botch 비틀거림(>0이면 점프·상하이동 봉인)
 
+    // 덕다이브(잠수): 점프의 반대 — 지상에서 Shift로 짧게 잠수해 '위' 장애물 통과
+    this.diving      = false;
+    this.diveMs      = 0;        // 남은 잠수 시간
+    this.diveCdMs    = 0;        // 쿨다운
+    this.diveOffset  = 0;        // 시각적 가라앉음 깊이(px, 아래로)
+    this._shiftPrev  = false;    // 잠수 엣지 감지
+
     // 체력 & 피격 무적
     this.health     = this.maxHealth;
     this.invulnMs   = 0;
@@ -130,6 +137,7 @@ export class Player {
     this._handleSteer(dt, cursors, environment);
     this._handleBalance(dt, cursors, environment);
     this._handleTrick(dt, cursors);
+    this._handleDive(dt, cursors);
     this._handleJump(dt, spaceKey, environment);
     this._applyPhysics(dt, environment);
     this._render(deltaMs);
@@ -176,6 +184,26 @@ export class Player {
     this.trickRotation += dir * TRICK.SPIN_RATE * dt;
   }
 
+  // 덕다이브(홀드) — Shift를 누르고 있는 동안 잠수 유지. 위협이 지날 때까지 누르고 있다 떼면 된다.
+  // 점프(위)의 짝(아래). 무한 잠수 방지로 MAX_MS 상한, 해제 후 짧은 쿨다운. 잠수 중엔 점프 불가.
+  _handleDive(dt, cursors) {
+    if (this.diveCdMs > 0) this.diveCdMs = Math.max(0, this.diveCdMs - dt * 1000);
+    const pressed = !!cursors.shift?.isDown;
+
+    if (this.diving) {
+      this.diveMs += dt * 1000;                       // 잠수 누적 시간
+      if (!pressed || this.diveMs >= DIVE.MAX_MS) {   // 떼거나 상한 도달 → 해제
+        this.diving = false;
+        this.diveCdMs = DIVE.COOLDOWN_MS;
+      }
+    } else if (pressed && !this._shiftPrev &&
+               this.isGrounded && this.diveCdMs <= 0 && this.staggerMs <= 0) {
+      this.diving = true;                             // 누른 순간 잠수 시작(홀드 시작점)
+      this.diveMs = 0;
+    }
+    this._shiftPrev = pressed;
+  }
+
   _handleSteer(dt, cursors, environment) {
     const locked = this.staggerMs > 0;   // 비틀거림 중 상하 이동 봉인
     if (!locked && cursors.up.isDown)        this.vSteer -= STEER_ACCEL * dt;
@@ -201,6 +229,7 @@ export class Player {
     this._spacePrev = pressed;
 
     if (this.staggerMs > 0) { this._jumpBufferMs = 0; return; }   // 비틀거림 중 점프 봉인
+    if (this.diving)        { this._jumpBufferMs = 0; return; }   // 잠수 중 점프 봉인
     if (this._jumpBufferMs <= 0) return;
 
     if (this.isGrounded) {
@@ -231,7 +260,10 @@ export class Player {
         }
       }
     }
-    this.y = this.baseY - this.jumpOffset;
+    // 잠수 깊이 — 홀드 중 DEPTH로 부드럽게 가라앉고, 떼면 0으로 복귀
+    const diveTarget = this.diving ? DIVE.DEPTH : 0;
+    this.diveOffset += (diveTarget - this.diveOffset) * Math.min(1, 12 * dt);
+    this.y = this.baseY - this.jumpOffset + this.diveOffset;
   }
 
   // 착지 정렬 판정 — 회전이 180°(π)의 배수에 CLEAN_TOL 이내면 클린 랜딩(점수),

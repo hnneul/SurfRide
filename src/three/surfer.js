@@ -27,9 +27,10 @@ export class Surfer {
     if (!this.group || !player) return;
     const bob  = Math.sin(t * 2) * 0.06;                  // 파도 출렁임
     const jump = (player.jumpOffset ?? 0) / PX_PER_UNIT;  // 점프 높이(게임 px → 월드)
+    const dive = (player.diveOffset ?? 0) / PX_PER_UNIT;  // 잠수 깊이(아래로)
     this.group.position.set(
       gameX2WorldX(player.x),
-      WATER_Y + bob + jump,
+      WATER_Y + bob + jump - dive,
       rideY2WorldZ(player.baseY),
     );
     const grounded = player.isGrounded ?? true;
