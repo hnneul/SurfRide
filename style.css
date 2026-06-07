@@ -494,6 +494,7 @@ html, body {
 
 .world-map__body {
   position: relative;
+  container-type: size;   /* 차트가 이 박스 크기(cqw/cqh)를 기준으로 자기 크기를 잡는다 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -507,13 +508,14 @@ html, body {
     0 18px 40px -24px rgba(4, 40, 74, 0.7);
 }
 /* 차트를 배경 이미지(1672×941)의 종횡비로 고정해 잘림 없이 전체가 보이게 하고,
-   퍼센트 좌표(노드·경로)가 지형과 1:1 로 정렬되도록 한다. 남는 공간은 좌우 바다색으로 채운다. */
+   퍼센트 좌표(노드·경로)가 지형과 1:1 로 정렬되도록 한다. 남는 공간은 바다색으로 채운다.
+   너비 = min(바다박스 너비, 바다박스 높이×비율) → 어느 쪽으로 좁아져도 박스 안에 통째로
+   들어가며 종횡비가 유지돼, cover 크롭(맵 잘림)이 생기지 않는다. */
 .world-map__chart {
   position: relative;
-  height: 100%;
-  width: auto;
+  width: min(100cqw, 100cqh * 1672 / 941);
+  height: auto;
   aspect-ratio: 1672 / 941;
-  max-width: 100%;
   margin: 0 auto;
   border-radius: 6px;
   background: url('/world-map-pacific-route.png') center/cover no-repeat;
@@ -670,6 +672,10 @@ html, body {
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   animation: world-card-pop 0.18s ease-out;
+}
+/* 선택된 스테이지가 없으면 빈 카드 박스를 숨긴다 — 빈 패널 잔상 방지 */
+.world-map-card:empty {
+  display: none;
 }
 @keyframes world-card-pop {
   from { opacity: 0; transform: translateY(8px) scale(0.97); }
