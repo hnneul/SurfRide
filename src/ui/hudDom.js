@@ -29,7 +29,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
         <div class="hud__minimap-fill"></div>
         <span class="hud__minimap-surfer">🏄</span>
       </div>
-      <div class="hud__minimap-ends"><span>제주</span><span>태평양</span></div>
+      <div class="hud__minimap-ends"><span></span><span></span></div>
     </div>
     <div class="hud__weather" hidden>⚡ 기상 이변 · 점수 ×2</div>
     <div class="hud__stage-effect" hidden></div>
@@ -64,6 +64,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
     perfect:      root.querySelector('.hud__perfect'),
     minimapFill:   root.querySelector('.hud__minimap-fill'),
     minimapSurfer: root.querySelector('.hud__minimap-surfer'),
+    minimapEnds:   root.querySelectorAll('.hud__minimap-ends span'),
     weather:      root.querySelector('.hud__weather'),
     effect:       root.querySelector('.hud__stage-effect'),
     updraft:      root.querySelector('.hud__updraft'),
@@ -110,10 +111,12 @@ export function mountHud(parent = document.getElementById('game-container')) {
     }
     prevPerfect = pj;
 
-    // 미니맵 (항해 진척) — 출발(제주)→목적지(태평양)
+    // 미니맵 (항해 진척) — 현재 스테이지 → 다음 스테이지
     const prog = Math.max(0, Math.min(1, s.progress ?? 0));
     el.minimapFill.style.width = `${prog * 100}%`;
     el.minimapSurfer.style.left = `${prog * 100}%`;
+    el.minimapEnds[0].textContent = s.stageName ?? '';
+    el.minimapEnds[1].textContent = s.nextStageName ?? '';
 
     // 기상이변 배너 · 위험구간 비네트 · 튜토리얼 문구
     el.weather.hidden = !s.weatherActive;

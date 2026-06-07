@@ -202,6 +202,7 @@ export default class GameScene extends Phaser.Scene {
       remainSec:    Math.max(0, (this.obstacleManager._stageDuration - this.stageTimer) / 1000),
       stageId:      this.stage.id,
       stageName:    this.stage.name,
+      nextStageName: STAGES[this.stageIndex + 1]?.name ?? '완주',
       weatherActive: !!this._weatherActive,
       stageEffect:   this._stageEffectHud(),
       progress:     Math.min(this.stageTimer / this.obstacleManager._stageDuration, 1),
