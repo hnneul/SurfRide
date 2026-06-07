@@ -42,6 +42,58 @@ const SEA3D_OVERRIDE = {
   jeju: [0x007fa7, 0x08b6c6, 0x31ded7],
 };
 
+const SCENIC_STAGE_SET = {
+  jeju: {
+    backdropUrl: '/stage-1-jeju-scenic-loop.png',
+    backdropRepeatX: 0.5,
+  },
+  jeju_coast: {
+    backdropUrl: '/stage-2-coral-waterway-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  south_jeju: {
+    backdropUrl: '/stage-3-ancient-gate-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  east_china_sea: {
+    backdropUrl: '/stage-4-mushroom-coral-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  okinawa: {
+    backdropUrl: '/stage-5-shipwreck-reef-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  philippines: {
+    backdropUrl: '/stage-6-crystal-cave-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  pacific_night: {
+    backdropUrl: '/stage-7-mariana-abyss-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  volcanic: {
+    backdropUrl: '/stage-8-volcanic-island-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  storm: {
+    backdropUrl: '/stage-9-storm-vortex-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  final: {
+    backdropUrl: '/stage-10-pacific-temple-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+};
+
 // 스테이지 배경 이미지(픽셀아트) 토글. 테마에 경로를 넣으면 절차적 3D 바다·하늘·섬·구름을 전부
 // 생략하고 그 이미지를 화면 전체 백드롭(scene.background)으로 깐다(서퍼·장애물 등 액터는 위에).
 // 단점: 정적이라 파도·구름이 안 움직임 → 기본은 비활성(절차적 움직이는 바다 사용).
@@ -59,6 +111,7 @@ export class World {
     this.theme = BACKGROUND_THEMES[themeKey] ?? BACKGROUND_THEMES.jeju;
     this.swell = this.theme.swell ?? 1;   // 잔잔(1.0) ~ 괴물 파도(1.75)
     this.backdropUrl = STAGE_BACKDROP[themeKey] ?? null;   // 이미지 백드롭 테마면 절차적 배경 생략
+    this.scenicStageSet = SCENIC_STAGE_SET[themeKey] ?? null;
     this.stageSet = null;
     this.waveParams = this._resolveWaveParams();
     this._t = 0;                          // 마지막 update 시간(샘플러 기본값)
@@ -70,8 +123,8 @@ export class World {
       this._buildImageBackdrop();   // 픽셀아트 전체 배경 — 3D 바다·하늘·섬·구름 미생성
     } else {
       this._buildMainOcean();
-      this._buildBackground();
-      if (this.themeKey === 'jeju') this.stageSet = new JejuStageSet(this.scene);
+      if (!this.scenicStageSet) this._buildBackground();
+      if (this.scenicStageSet) this.stageSet = new JejuStageSet(this.scene, this.scenicStageSet);
     }
   }
 

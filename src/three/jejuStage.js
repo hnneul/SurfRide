@@ -6,8 +6,12 @@ const JEJU_BACKDROP = '/stage-1-jeju-scenic-loop.png';
 const BACKDROP_SCROLL_SPEED = 0.014;
 
 export class JejuStageSet {
-  constructor(scene) {
+  constructor(scene, options = {}) {
     this.scene = scene;
+    this.backdropUrl = options.backdropUrl ?? JEJU_BACKDROP;
+    this.backdropRepeatX = options.backdropRepeatX ?? 0.5;
+    this.backdropScrollSpeed = options.backdropScrollSpeed ?? BACKDROP_SCROLL_SPEED;
+    this.backdropOffsetY = options.backdropOffsetY ?? 0;
     this.root = new THREE.Group();
     this.root.name = 'JejuStageSet';
     this.foam = [];
@@ -29,7 +33,7 @@ export class JejuStageSet {
 
   update(t) {
     if (this.backdropTex) {
-      this.backdropTex.offset.x = (t * BACKDROP_SCROLL_SPEED) % 1;
+      this.backdropTex.offset.x = (t * this.backdropScrollSpeed) % 1;
     }
 
     for (const band of this.foam) {
@@ -73,14 +77,15 @@ export class JejuStageSet {
   }
 
   _buildScenicBackdrop() {
-    new THREE.TextureLoader().load(JEJU_BACKDROP, (tex) => {
+    new THREE.TextureLoader().load(this.backdropUrl, (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.magFilter = THREE.NearestFilter;
       tex.minFilter = THREE.NearestFilter;
       tex.generateMipmaps = false;
       tex.wrapS = THREE.RepeatWrapping;
       tex.wrapT = THREE.ClampToEdgeWrapping;
-      tex.repeat.set(0.5, 1);
+      tex.repeat.set(this.backdropRepeatX, 1);
+      tex.offset.y = this.backdropOffsetY;
       this.scene.background = tex;
       this.backdropTex = tex;
 
