@@ -470,7 +470,9 @@ export class ObstacleManager {
   // 그레이즈/점프 통과 감지 + 안전 통과 시점을 resolvedQueue에 적재
   _trackPlayer(obs, player) {
     if (obs.collidable) {
-      const hb = player.hitbox;
+      // 그레이즈도 충돌과 같은 레인(파도면 baseY) 기준 — 점프 중 위쪽 다른 레인을
+      // 훑고 지나갈 때 생기던 '허깨비 아슬아슬'을 막는다(checkCollision 주석 참고).
+      const hb = player.groundHitbox;
       if (!this._aabb(hb, obs.hitbox) && this._aabb(hb, obs.grazebox)) obs.grazed = true;
       // 퍼펙트 점프는 '점프로 넘는' 장애물에만 — 고래·번개(move)는 점프로 못 넘음
       const vNear = Math.abs(obs.targetY - player.baseY) < obs.hitboxH / 2 + 60;
@@ -530,15 +532,24 @@ export class ObstacleManager {
     this.obstacles = this.obstacles.filter(o => o.active);
   }
 
-  // move 장애물은 baseY(점프 무시) 박스로 판정 → 점프로 못 피하고 위치 이동을 강제.
-  // jump 장애물은 실제 박스(점프 높이 반영)로 판정 → 점프로 넘을 수 있음.
   checkCollision(player) {
     for (const obs of this.obstacles) {
       if (!obs.collidable || obs.hitByPlayer) continue;
-      const pb = obs.avoidMode === 'move' ? player.groundHitbox : player.hitbox;
-      if (this._aabb(pb, obs.hitbox)) { obs.hitByPlayer = true; return obs; }
+      if (this._hitsPlayer(obs, player)) { obs.hitByPlayer = true; return obs; }
     }
     return null;
+  }
+
+  // 충돌 판정. 레인(파도면 baseY = 3D 깊이)이 겹쳐야 하며, 'jump' 장애물은 점프 높이로 넘는다.
+  // 핵심: 레인=깊이(z)와 점프=높이(y)는 3D에서 직교축이다. 예전엔 점프를 baseY에 합산한
+  // player.hitbox(y) 한 축으로 판정해, 점프하면 player.y가 '위쪽 다른 레인' 장애물의 y를
+  // 훑고 지나가며 "안 덮쳤는데 맞았다"가 났다. 이제 레인 겹침은 groundHitbox(baseY)로만 보고,
+  // 점프는 '장애물을 넘었는지' 높이 게이트로 분리한다.
+  _hitsPlayer(obs, player) {
+    if (!this._aabb(player.groundHitbox, obs.hitbox)) return false;   // 다른 레인이면 안전
+    if (obs.avoidMode === 'move') return true;                        // 점프 무효(고래·번개) — 레인 겹치면 피격
+    const clearH = (player.hitboxH + obs.hitbox.h) / 2;               // 넘는 데 필요한 점프 높이(px)
+    return player.jumpOffset <= clearH;                               // 충분히 못 떴으면 피격
   }
 
   // 이번 프레임에 안전 통과로 확정된 장애물들(점수 처리용). 큐를 비운다.
