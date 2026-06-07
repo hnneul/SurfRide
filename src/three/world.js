@@ -127,10 +127,12 @@ export class World {
 
   // 밤 우선(final=night+storm 둘 다라 밤 채택).
   _lightingForTheme(th) {
-    if (th.night)        return { ambColor: 0x9fb0da, ambI: 2.8, dirColor: 0x9aabd6, dirI: 0.6 };
-    if (th.storm)        return { ambColor: 0xbcc6cf, ambI: 2.8, dirColor: 0xaab4be, dirI: 0.6 };
-    if (th.volcanicGlow) return { ambColor: 0xe2b8a0, ambI: 2.8, dirColor: 0xffb070, dirI: 0.65 };
-    return { ambColor: 0xffffff, ambI: 2.8, dirColor: 0xffffff, dirI: 0.7 };   // 주간
+    // 앰비언트를 낮추고 방향광을 키워 파도 경사가 빛/그늘을 받게 한다 → 입체감.
+    // 밤/폭풍은 가독성 위해 앰비언트 하한을 조금 더 높게 유지.
+    if (th.night)        return { ambColor: 0x9fb0da, ambI: 2.0, dirColor: 0xaebbe0, dirI: 1.5 };
+    if (th.storm)        return { ambColor: 0xbcc6cf, ambI: 2.1, dirColor: 0xbac4ce, dirI: 1.4 };
+    if (th.volcanicGlow) return { ambColor: 0xe2b8a0, ambI: 1.9, dirColor: 0xffb070, dirI: 1.7 };
+    return { ambColor: 0xffffff, ambI: 1.5, dirColor: 0xffffff, dirI: 2.2 };   // 주간
   }
 
   // ── 파동장 샘플러 ── 메인 수면 메시·서퍼·장애물이 공유하는 단일 진실. 같은 함수로
@@ -157,6 +159,34 @@ export class World {
     };
   }
 
+  // 하늘 그라데이션 환경맵 — 평면 반사(2차 렌더) 없이 수면이 하늘·태양을 비추게 한다.
+  // flatShading facet마다 노멀 각도로 하늘을 샘플 → 파도가 일렁이며 하늘빛·태양 글린트를 반사.
+  // 색은 테마 sky(천정→수평선)에서 뽑아 씬과 톤을 맞춘다.
+  _buildSkyEnv() {
+    const sky = this.theme.sky ?? [0x89d9ff, 0x46a9d6, 0x1e78b8];
+    const hex = (c) => '#' + new THREE.Color(c).getHexString();
+    const cv = document.createElement('canvas');
+    cv.width = 256; cv.height = 128;
+    const ctx = cv.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0.0, hex(sky[0]));            // 천정
+    g.addColorStop(0.5, hex(sky[1] ?? sky[0]));
+    g.addColorStop(0.72, hex(sky[2] ?? sky[0])); // 수평선
+    g.addColorStop(1.0, '#0a3550');              // 아래(어두운 물 반사)
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 128);
+    if ((this.theme.sun ?? 0) > 0) {             // 주간: 태양 글린트(밝은 반점)
+      const sx = 256 * 0.62, sy = 128 * 0.3, r = 28;
+      const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+      sg.addColorStop(0, 'rgba(255,250,220,0.95)');
+      sg.addColorStop(1, 'rgba(255,250,220,0)');
+      ctx.fillStyle = sg; ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   // 메인 수면 — 넓고 깊은 평면 하나를 매 프레임 파동장으로 변위. 정점색은 원경(짙음)→근경(밝음)
   // 그라데이션. jeju는 살짝 반투명(opacity<1)으로 사진 수평선이 먼 가장자리에서 비쳐 어우러진다.
   _buildMainOcean() {
@@ -177,8 +207,11 @@ export class World {
 
     // 불투명 — 깊이를 써서 서퍼/장애물이 마루 뒤로 깔끔히 가려지고(서핑감) 마루 위에선 또렷이 보인다.
     // (반투명이면 가까운 물이 서퍼 위로 비쳐 '물에 잠긴 유령'처럼 보였다.) 사진 백드롭은 수면 위로 비침.
-    const mat = new THREE.MeshLambertMaterial({
+    this.skyEnv = this._buildSkyEnv();   // 하늘 반사용 환경맵(저비용, 2차 렌더 없음)
+    const mat = new THREE.MeshStandardMaterial({
       vertexColors: true, flatShading: true,
+      metalness: 0.45, roughness: 0.30,
+      envMap: this.skyEnv, envMapIntensity: 1.5,   // 수면이 하늘·태양을 반사(글로시 워터)
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(def.cx, WATER_Y, def.cz);
@@ -188,7 +221,13 @@ export class World {
     const wx = new Float32Array(pos.count);
     const wz = new Float32Array(pos.count);
     for (let i = 0; i < pos.count; i++) { wx[i] = def.cx + pos.getX(i); wz[i] = def.cz + pos.getZ(i); }
-    this.ocean = { mesh, geo, pos, wx, wz };
+    this.ocean = {
+      mesh, geo, pos, wx, wz,
+      col: geo.attributes.color,
+      baseCol: new Float32Array(cols),                            // 높이 변조 전 기준색(원경→근경)
+      crest: new THREE.Color(0xcdeeff),                           // 마루 하이라이트(하늘 반사) 색
+      amp: this.waveParams.swellAmp + this.waveParams.swell2Amp,  // 높이 정규화 기준
+    };
 
     this._buildFoamCrests();
   }
@@ -336,15 +375,27 @@ export class World {
   // 백드롭 텍스처는 scene.background라 disposeObject(씬 자식 순회) 대상이 아님 — 직접 해제.
   dispose() {
     this.backdropTex?.dispose();
+    this.skyEnv?.dispose();
     this.stageSet?.dispose();
   }
 
   // 메인 수면 변위 — 캐시한 정점 월드 (x,z)를 sampleWaveHeight에 넣어 마루를 만든다.
   // mesh.position.y=WATER_Y이므로 정점 y엔 파고만 싣는다(액터도 WATER_Y+파고에 얹혀 정확히 일치).
   _animateMainOcean(t) {
-    const { pos, wx, wz } = this.ocean;
-    for (let i = 0; i < pos.count; i++) pos.setY(i, this.sampleWaveHeight(wx[i], wz[i], t));
+    const { pos, wx, wz, col, baseCol, crest, amp } = this.ocean;
+    for (let i = 0; i < pos.count; i++) {
+      const h = this.sampleWaveHeight(wx[i], wz[i], t);
+      pos.setY(i, h);
+      // 높이로 정점색 변조: 마루는 밝은 시안(하늘 반사)으로, 골은 어둡게 → 입체 깊이감.
+      let n = h / amp; n = n < -1 ? -1 : n > 1 ? 1 : n;
+      const j = i * 3;
+      let r = baseCol[j], g = baseCol[j + 1], b = baseCol[j + 2];
+      if (n > 0) { const m = n * 0.55; r += (crest.r - r) * m; g += (crest.g - g) * m; b += (crest.b - b) * m; }
+      else       { const d = 1 + n * 0.38; r *= d; g *= d; b *= d; }
+      col.setXYZ(i, r, g, b);
+    }
     pos.needsUpdate = true;
+    col.needsUpdate = true;
     this._animateFoamCrests(t);
   }
 
