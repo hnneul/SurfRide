@@ -2,21 +2,23 @@ import * as THREE from 'three';
 import { WATER_Y, gameX2WorldX, rideY2WorldZ, disposeObject } from './bridge.js';
 
 const PIXEL_ASSETS = Object.freeze({
-  FLYING_FISH: '/img/obstacle-flying-fish.png',
-  SHARK:       '/img/obstacle-shark.png',
-  WHALE:       '/img/obstacle-whale.png',
-  JELLYFISH:   '/img/obstacle-jellyfish.png',
-  OCTOPUS:     '/img/obstacle-octopus.png',
-  LIGHTNING:   '/img/obstacle-lightning.png',
+  FLYING_FISH_SMALL: '/obstacles/flying-fish-a.png',
+  FLYING_FISH_BURST: '/obstacles/flying-fish-b.png',
+  SHARK:       '/obstacles/shark.png',
+  WHALE:       '/obstacles/whale.png',
+  JELLYFISH:   '/obstacles/jellyfish.png',
+  OCTOPUS:     '/obstacles/octopus.png',
+  LIGHTNING:   '/obstacles/lightning.png',
 });
 
 const PIXEL_SPRITE_SCALE = Object.freeze({
-  FLYING_FISH: [1.95, 1.05],
-  SHARK:       [2.45, 1.15],
-  WHALE:       [3.95, 2.05],
-  JELLYFISH:   [1.35, 1.55],
-  OCTOPUS:     [1.8, 1.65],
-  LIGHTNING:   [1.05, 3.4],
+  FLYING_FISH_SMALL: [1.75, 1.04],
+  FLYING_FISH_BURST: [2.35, 1.92],
+  SHARK:       [2.75, 1.78],
+  WHALE:       [3.7, 2.6],
+  JELLYFISH:   [1.62, 1.94],
+  OCTOPUS:     [2.05, 1.95],
+  LIGHTNING:   [0.82, 4.9],
 });
 
 // 장애물 메시 6종 (저폴리). 모두 base가 그룹 원점=수면에 — reveal을 scale.y에 실어 분출.
@@ -43,8 +45,18 @@ export class Obstacles {
     return this._textures.get(type);
   }
 
-  _makePixelSprite(type) {
-    const texture = this._texture(type);
+  _assetKey(obsOrType) {
+    const type = typeof obsOrType === 'string' ? obsOrType : obsOrType.type;
+    if (type === 'FLYING_FISH') {
+      const variant = typeof obsOrType === 'string' ? 'small' : (obsOrType.variant ?? 'small');
+      return variant === 'burst' ? 'FLYING_FISH_BURST' : 'FLYING_FISH_SMALL';
+    }
+    return type;
+  }
+
+  _makePixelSprite(obsOrType) {
+    const assetKey = this._assetKey(obsOrType);
+    const texture = this._texture(assetKey);
     if (!texture) return null;
 
     const g = new THREE.Group();
@@ -54,7 +66,7 @@ export class Obstacles {
       depthWrite: false,
     });
     const sprite = new THREE.Sprite(material);
-    const [w, h] = PIXEL_SPRITE_SCALE[type] ?? [1.5, 1.2];
+    const [w, h] = PIXEL_SPRITE_SCALE[assetKey] ?? [1.5, 1.2];
     sprite.scale.set(w, h, 1);
     sprite.position.y = h * 0.45;
     // 물 위에 그린다: 반투명 파도 레이어(JEJU_WAVE_LAYERS, depthWrite:false, renderOrder 0)는
@@ -70,8 +82,9 @@ export class Obstacles {
     return g;
   }
 
-  _make(type) {
-    const pixel = this._makePixelSprite(type);
+  _make(obsOrType) {
+    const type = typeof obsOrType === 'string' ? obsOrType : obsOrType.type;
+    const pixel = this._makePixelSprite(obsOrType);
     if (pixel) return pixel;
 
     const g = new THREE.Group();
@@ -161,7 +174,7 @@ export class Obstacles {
         if (!obs.active) continue;
         let mesh = this.meshes.get(obs);
         if (!mesh) {
-          mesh = this._make(obs.type);
+          mesh = this._make(obs);
           this.scene.add(mesh);
           this.meshes.set(obs, mesh);
         }

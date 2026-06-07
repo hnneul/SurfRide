@@ -17,6 +17,8 @@ const T = Lane.TOP;
 const M = Lane.MID;
 const B = Lane.BOT;
 
+const FLYING_FISH_BURST_TELEGRAPH_MS = 900;
+
 // 데이터를 typed const에 직접 할당해야 TS가 각 이벤트의 오타·누락을 검사한다
 // (Object.freeze로 감싸면 검사가 약해지므로 freeze는 export 시점에 적용).
 /** @type {Record<string, SpawnEvent[]>} */
@@ -396,4 +398,17 @@ const PATTERN_DATA = {
   ],
 };
 
-export const PATTERNS = Object.freeze(PATTERN_DATA);
+function normalizeFlyingFishVariants(patterns) {
+  return Object.fromEntries(Object.entries(patterns).map(([key, events]) => [
+    key,
+    events.map((event) => {
+      if (event.obstacleType !== FF || event.variant) return event;
+      const variant = !event.isFake && (event.telegraphMs ?? 9999) <= FLYING_FISH_BURST_TELEGRAPH_MS
+        ? 'burst'
+        : 'small';
+      return { ...event, variant };
+    }),
+  ]));
+}
+
+export const PATTERNS = Object.freeze(normalizeFlyingFishVariants(PATTERN_DATA));

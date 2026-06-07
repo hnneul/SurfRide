@@ -12,6 +12,7 @@
 /** @typedef {'FLYING_FISH'|'SHARK'|'WHALE'|'JELLYFISH'|'OCTOPUS'|'LIGHTNING'} ObstacleTypeName */
 /** @typedef {'SPLASH'|'FIN'|'SHADOW'|'GLOW'|'TENTACLE'|'FLASH'} SignalTypeName */
 /** @typedef {'jump'|'move'} AvoidMode  점프로 넘김('jump') vs 위치 이동 강제('move') */
+/** @typedef {'small'|'burst'} FlyingFishVariant */
 
 // ─── 스폰 이벤트 (spawnPatterns.js → ObstacleManager → Signal/Obstacle) ───────
 
@@ -29,6 +30,7 @@
  * @property {boolean} [isFake]                true면 신호만 뜨고 장애물 없음(블러핑)
  * @property {boolean} [aimAtPlayer]           true면 신호 순간 서퍼 높이를 겨냥해 분출
  * @property {SignalTypeName} [signalType]     신호 비주얼 강제(없으면 obstacleType 기본값)
+ * @property {FlyingFishVariant} [variant]      날치 변형(small=작은 날치 / burst=붉은 예고 후 큰 날치)
  * @property {boolean} [targeted]              (런타임 부여) 타겟 분출 여부
  */
 

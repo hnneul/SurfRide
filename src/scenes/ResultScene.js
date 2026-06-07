@@ -13,6 +13,7 @@ const SOFT   = '#9fb8d4';   // 기록까지 멀 때(차분한 슬레이트)
 const GOLD   = '#ffd700';   // 힌트/격려/하이라이트
 
 const GAME_OVER_BG = 'game-over-night-ocean-neon';
+const STAGE_CLEAR_BG = 'stage-clear-ocean-pixel';
 
 export default class ResultScene extends Phaser.Scene {
   constructor() { super({ key: 'ResultScene' }); }
@@ -20,6 +21,9 @@ export default class ResultScene extends Phaser.Scene {
   preload() {
     if (!this.textures.exists(GAME_OVER_BG)) {
       this.load.image(GAME_OVER_BG, '/game-over-night-ocean-neon.png');
+    }
+    if (!this.textures.exists(STAGE_CLEAR_BG)) {
+      this.load.image(STAGE_CLEAR_BG, '/stage-clear-ocean-pixel.png');
     }
   }
 
@@ -71,11 +75,27 @@ export default class ResultScene extends Phaser.Scene {
 
   // ─── 헤더 ────────────────────────────────────────────────────────────────────
   _renderBackdrop() {
+    if (this.cleared && this.textures.exists(STAGE_CLEAR_BG)) {
+      const bg = this.add.image(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, STAGE_CLEAR_BG)
+        .setOrigin(0.5)
+        .setDepth(-20);
+      bg.setScale(Math.max(LOGICAL_WIDTH / bg.width, LOGICAL_HEIGHT / bg.height));
+
+      this.add.graphics().setDepth(-19)
+        .fillStyle(0xffffff, 0.08).fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT)
+        .fillStyle(0x004c7a, 0.30).fillRoundedRect(500, 318, 920, 548, 8)
+        .lineStyle(2, 0xffffff, 0.34).strokeRoundedRect(500, 318, 920, 548, 8)
+        .fillStyle(0x002f5a, 0.18).fillRect(0, 780, LOGICAL_WIDTH, 300);
+
+      return;
+    }
+
     if (!this.cleared && this.textures.exists(GAME_OVER_BG)) {
       const bg = this.add.image(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, GAME_OVER_BG)
         .setOrigin(0.5)
         .setDepth(-20);
       bg.setScale(Math.max(LOGICAL_WIDTH / bg.width, LOGICAL_HEIGHT / bg.height));
+      this._gameOverBg = bg;
 
       this.add.graphics().setDepth(-19)
         .fillStyle(0x01081a, 0.34).fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT)
@@ -129,18 +149,79 @@ export default class ResultScene extends Phaser.Scene {
   }
 
   _clearHeader(cx) {
-    this.add.text(cx, 120, 'STAGE CLEAR!', {
-      fontSize: '72px', fontFamily: 'sans-serif', color: '#4fc3f7', fontStyle: 'bold',
-    }).setOrigin(0.5);
+    const title = this.add.text(cx, 128, 'STAGE CLEAR!', {
+      fontSize: '76px', fontFamily: 'sans-serif', color: '#fff8c7', fontStyle: 'bold',
+      shadow: { offsetX: 0, offsetY: 4, color: '#0f6092', blur: 8, fill: true },
+    }).setOrigin(0.5).setData('baseY', 128);
 
-    const starSize = 52, gap = 14;
-    const startX = cx - (3 * starSize + 2 * gap) / 2;
-    for (let i = 0; i < 3; i++) {
-      this.add.text(startX + i * (starSize + gap), 158, '★', {
-        fontSize: `${starSize}px`, color: i < this.stars ? '#ffd700' : '#3a3a3a',
+    this._cause.push({ obj: title, apply: () => title.setAlpha(1).setScale(1).setY(128) });
+    this.clearStars = this._renderClearStars(cx, 238);
+    return 372;
+  }
+
+  _renderClearStars(cx, y) {
+    const count = Phaser.Math.Clamp(this.stars ?? 1, 1, 3);
+    const defs = [
+      { x: cx - 164, scale: 7.4, delay: 170 },
+      { x: cx + 164, scale: 7.4, delay: 360 },
+      { x: cx,       scale: 10.2, delay: 570 },
+    ];
+    return defs.slice(0, count).map((def, i, list) => {
+      const star = this._pixelStar(def.x, y + (i === 2 ? -8 : 14), def.scale)
+        .setAlpha(0)
+        .setScale(0)
+        .setData('baseX', def.x)
+        .setData('baseY', y + (i === 2 ? -8 : 14))
+        .setData('delay', def.delay)
+        .setData('isLast', i === list.length - 1);
+
+      this._cause.push({
+        obj: star,
+        apply: () => star.setAlpha(1).setScale(1).setAngle(0).setPosition(star.getData('baseX'), star.getData('baseY')),
       });
-    }
-    return 248;
+      return star;
+    });
+  }
+
+  _pixelStar(cx, cy, px) {
+    const c = this.add.container(cx, cy).setDepth(3);
+    const draw = (x, y, w, h, color, alpha = 1) => {
+      c.add(this.add.rectangle((x + w / 2 - 5) * px, (y + h / 2 - 5) * px, w * px, h * px, color, alpha));
+    };
+
+    [
+      [4, 0, 2, 1], [3, 1, 4, 1], [2, 2, 6, 1], [0, 3, 10, 2],
+      [1, 5, 8, 1], [2, 6, 6, 1], [2, 7, 2, 1], [6, 7, 2, 1],
+      [1, 8, 2, 1], [7, 8, 2, 1],
+    ].forEach(p => draw(...p, 0xf58a16));
+
+    [
+      [4, 1, 2, 1], [3, 2, 4, 1], [2, 3, 6, 2],
+      [3, 5, 4, 1], [4, 6, 2, 1], [3, 7, 1, 1], [6, 7, 1, 1],
+    ].forEach(p => draw(...p, 0xfff02f));
+
+    [[6, 2, 1, 3], [7, 3, 1, 2], [5, 5, 1, 1], [7, 6, 1, 1]]
+      .forEach(p => draw(...p, 0xffbc24, 0.92));
+    [[3, 2, 2, 1], [2, 3, 2, 1], [3, 4, 1, 1]]
+      .forEach(p => draw(...p, 0xffffff, 0.92));
+
+    return c;
+  }
+
+  _wiggleLastStar(star, onComplete) {
+    this._t(this.tweens.add({
+      targets: star,
+      angle: { from: -4, to: 4 },
+      x: { from: star.getData('baseX') - 4, to: star.getData('baseX') + 4 },
+      duration: 70,
+      yoyo: true,
+      repeat: 2,
+      ease: 'Sine.InOut',
+      onComplete: () => {
+        star.setAngle(0).setPosition(star.getData('baseX'), star.getData('baseY'));
+        onComplete?.();
+      },
+    }));
   }
 
   _gameOverHeader(cx) {
@@ -155,25 +236,15 @@ export default class ResultScene extends Phaser.Scene {
     const title = this.add.text(cx, y, 'WIPEOUT!', {
       fontSize: '42px', fontFamily: 'sans-serif', color: '#89f8ff', fontStyle: 'bold',
       shadow: { offsetX: 0, offsetY: 0, color: '#007dff', blur: 14, fill: true },
-    }).setOrigin(0.5).setAlpha(0).setScale(0.4);
-    this._t(this.tweens.add({ targets: title, alpha: 1, scale: 1, duration: 300, ease: 'Back.Out' }));
+    }).setOrigin(0.5);
     this._cause.push({ obj: title, apply: () => title.setAlpha(1).setScale(1) });
 
-    // 보드(타이틀 우측) 한 바퀴 회전
+    // 보드(타이틀 우측) — 게임오버 첫 화면은 정적으로 등장
     const bx = cx + 286, by = y;
     const boardBody = this.add.ellipse(0, 0, 110, 26, 0xffcc66).setStrokeStyle(3, 0xffffff, 0.85);
     const stripe    = this.add.rectangle(0, 0, 110, 6, 0xff8a3d);
     const board     = this.add.container(bx, by, [boardBody, stripe]);
-    this._t(this.tweens.add({ targets: board, angle: 360, duration: 760, ease: 'Cubic.Out' }));
-    this._cause.push({ obj: board, apply: () => { board.angle = 360; } });
-
-    // 물보라 링(퍼지며 사라짐) — 트윈과 오브젝트 모두 추적해 스킵 시 정리
-    const ring = this.add.circle(bx, by + 6, 12, 0xbfe7ff, 0.55);
-    this._t(this.tweens.add({
-      targets: ring, scale: { from: 0.4, to: 3 }, alpha: 0, duration: 640, ease: 'Quad.Out',
-      onComplete: () => { if (!this._settled && this.sys.isActive()) ring.destroy(); },
-    }));
-    this._cause.push({ obj: ring, apply: () => ring.destroy() });
+    this._cause.push({ obj: board, apply: () => { board.angle = 0; } });
 
     this.add.text(cx, y + 48, '← → 로 균형을 잡으세요', {
       fontSize: '22px', fontFamily: 'sans-serif', color: '#b8d9ff',
@@ -188,8 +259,7 @@ export default class ResultScene extends Phaser.Scene {
     const big = this.add.text(cx, y, `${name}!`, {
       fontSize: '42px', fontFamily: 'sans-serif', color: '#89f8ff', fontStyle: 'bold',
       shadow: { offsetX: 0, offsetY: 0, color: '#007dff', blur: 14, fill: true },
-    }).setOrigin(0.5).setAlpha(0).setScale(0.4);
-    this._t(this.tweens.add({ targets: big, alpha: 1, scale: 1, duration: 300, ease: 'Back.Out' }));
+    }).setOrigin(0.5);
     this._cause.push({ obj: big, apply: () => big.setAlpha(1).setScale(1) });
 
     const QUIPS = {
@@ -203,9 +273,8 @@ export default class ResultScene extends Phaser.Scene {
     const quip = QUIPS[this.hitObstacle?.type] ?? `${name}에 부딪혔어요`;
     const sub  = this.add.text(cx, y + 48, quip, {
       fontSize: '22px', fontFamily: 'sans-serif', color: '#b8d9ff',
-    }).setOrigin(0.5).setAlpha(0);
-    this._t(this.tweens.add({ targets: sub, alpha: 1, y: y + 42, duration: 240, delay: 180, ease: 'Quad.Out' }));
-    this._cause.push({ obj: sub, apply: () => sub.setAlpha(1).setY(y + 42) });
+    }).setOrigin(0.5);
+    this._cause.push({ obj: sub, apply: () => sub.setAlpha(1).setY(y + 48) });
   }
 
   // ─── 데이터 모델(순수) ────────────────────────────────────────────────────────
@@ -288,18 +357,21 @@ export default class ResultScene extends Phaser.Scene {
       yt += dy;
       return this.add.text(cx, yt, txt, style).setOrigin(0.5).setAlpha(0).setData('baseY', yt);
     };
-    const diffLabel = this.cleared ? this.final.diff.label : this._plainGameOverLine(this.final.diff.label);
-    const encourageLabel = this.cleared ? this.final.encourage.label : this._plainGameOverLine(this.final.encourage.label);
-    this.diffObj  = post(this.cleared ? 62 : 42, diffLabel, { fontSize: this.cleared ? '28px' : '22px', fontFamily: 'sans-serif', color: this.final.diff.color, fontStyle: 'bold' });
-    this.statsObj = post(this.cleared ? 42 : 0, this.cleared ? this.final.statsText : null, { fontSize: '24px', fontFamily: 'sans-serif', color: '#9fb8d4' });
-    this.hintObj  = post(this.cleared ? 46 : 0, this.cleared ? `💡 ${this.final.hintText}` : null, { fontSize: '28px', fontFamily: 'sans-serif', color: '#ffd700', fontStyle: 'bold' });
-    this.badgeObj = post(this.cleared ? 44 : 0, this.cleared ? this.final.badge.label : null, { fontSize: '28px', fontFamily: 'sans-serif', color: this.final.badge.color, fontStyle: 'bold' });
+    const diffLabel = this._plainGameOverLine(this.final.diff.label);
+    this.diffObj  = post(this.cleared ? 0 : 42, this.cleared ? null : diffLabel, { fontSize: '22px', fontFamily: 'sans-serif', color: this.final.diff.color, fontStyle: 'bold' });
+    this.statsObj = null;
+    this.hintObj  = null;
+    this.badgeObj = null;
 
     // 격려 문구는 버튼(y=928) 바로 위에 고정 — 누적 배치가 버튼을 침범하지 않도록
-    const encourageY = this.cleared ? 864 : 912;
-    this.encourageObj = this.add.text(cx, encourageY, encourageLabel, {
-      fontSize: this.cleared ? '28px' : '20px', fontFamily: 'sans-serif', color: this.final.encourage.color, fontStyle: 'bold',
-    }).setOrigin(0.5).setAlpha(0).setData('baseY', encourageY);
+    if (this.cleared) {
+      this.encourageObj = null;
+    } else {
+      const encourageY = 912;
+      this.encourageObj = this.add.text(cx, encourageY, this._plainGameOverLine(this.final.encourage.label), {
+        fontSize: '20px', fontFamily: 'sans-serif', color: this.final.encourage.color, fontStyle: 'bold',
+      }).setOrigin(0.5).setAlpha(0).setData('baseY', encourageY);
+    }
   }
 
   _plainGameOverLine(label) {
@@ -324,22 +396,65 @@ export default class ResultScene extends Phaser.Scene {
   // 체인이 '순서/등장 템포'를, 각 addCounter가 '숫자 모션'을 담당.
   // 한 행: alpha(140) + completeDelay(120) = 260ms == 행 카운터(260ms) → 숫자가 등장보다 뒤처지지 않음.
   _animate() {
+    if (!this.cleared) {
+      this._d(this.time.delayedCall(200, () => this._animateGameOverScores()));
+      this._d(this.time.delayedCall(300, () => this._shakeGameOverLogo()));
+      return;
+    }
+
     const rowTweens = this.rows.map(row => ({
       targets: [row.labelObj, row.valueObj],
       alpha: { from: 0, to: 1 }, duration: 140, completeDelay: 120,
       onStart: () => { if (this._settled || !this.sys.isActive()) return; this._countRow(row); },
     }));
 
-    this._t(this.tweens.chain({
-      tweens: rowTweens,
-      onComplete: () => { if (this._settled || !this.sys.isActive()) return; this._startTotal(); },
+    const startRows = () => {
+      if (this._settled || !this.sys.isActive()) return;
+      this._t(this.tweens.chain({
+        tweens: rowTweens,
+        onComplete: () => { if (this._settled || !this.sys.isActive()) return; this._startTotal(); },
+      }));
+    };
+
+    if (this.cleared) this._d(this.time.delayedCall(200, startRows));
+    else startRows();
+  }
+
+  _animateGameOverScores() {
+    if (this._settled || !this.sys.isActive()) return;
+
+    const rowGap = 78;
+    const rowDuration = 95;
+    this.rows.forEach((row, i) => {
+      this._d(this.time.delayedCall(i * rowGap, () => {
+        if (this._settled || !this.sys.isActive()) return;
+        row.labelObj.y = row.labelObj.getData('baseY');
+        row.valueObj.y = row.valueObj.getData('baseY');
+        this._t(this.tweens.add({
+          targets: [row.labelObj, row.valueObj],
+          alpha: 1,
+          duration: rowDuration,
+          ease: 'Quad.Out',
+          onStart: () => this._countRow(row, 220),
+          onComplete: () => {
+            row.labelObj.setAlpha(1);
+            row.valueObj.setAlpha(1);
+          },
+        }));
+      }));
+    });
+
+    const totalDelay = this.rows.length * rowGap + 70;
+    this._d(this.time.delayedCall(totalDelay, () => {
+      if (this._settled || !this.sys.isActive()) return;
+      this._startTotal();
     }));
   }
 
-  _countRow(row) {
+  _countRow(row, duration = 260) {
     if (!row.value) { row.valueObj.setText('0'); return; }   // 0점 행은 즉시 표시, 팝 없음
     this._t(this.tweens.addCounter({
-      from: 0, to: row.value, duration: 260, ease: 'Cubic.Out',
+      from: 0, to: row.value, duration, ease: 'Cubic.Out',
       onUpdate: t => { if (this._settled || !this.sys.isActive()) return; row.valueObj.setText(Math.round(t.getValue()).toLocaleString()); },
       onComplete: () => {
         if (this._settled || !this.sys.isActive()) return;
@@ -377,8 +492,34 @@ export default class ResultScene extends Phaser.Scene {
     }));
   }
 
+  _shakeGameOverLogo() {
+    if (this.cleared || !this._gameOverBg || this._settled || !this.sys.isActive()) return;
+    const bg = this._gameOverBg;
+    const baseX = LOGICAL_WIDTH / 2;
+    const baseY = LOGICAL_HEIGHT / 2;
+    this._t(this.tweens.add({
+      targets: bg,
+      x: { from: baseX - 3, to: baseX + 3 },
+      y: { from: baseY - 1, to: baseY + 1 },
+      angle: { from: -0.08, to: 0.08 },
+      duration: 42,
+      yoyo: true,
+      repeat: 2,
+      ease: 'Sine.InOut',
+      onComplete: () => bg.setPosition(baseX, baseY).setAngle(0),
+    }));
+  }
+
   // 총점 정산 후: 차이/통계/힌트/배지/격려를 순차 등장 → 마지막에 _settle(단일 종료점)
   _afterCounts() {
+    if (this.cleared) {
+      this._animateClearStars(() => {
+        if (this._settled || !this.sys.isActive()) return;
+        this._settle();
+      });
+      return;
+    }
+
     const reveal = (o, d) => {
       if (!o) return;
       const baseY = o.getData('baseY');
@@ -398,6 +539,51 @@ export default class ResultScene extends Phaser.Scene {
       if (this._settled || !this.sys.isActive()) return;
       this._settle();
     }));
+  }
+
+  _animateClearStars(onComplete) {
+    if (!this.clearStars?.length) {
+      onComplete?.();
+      return;
+    }
+
+    let finished = 0;
+    const done = () => {
+      finished += 1;
+      if (finished >= this.clearStars.length) onComplete?.();
+    };
+
+    for (const star of this.clearStars) {
+      this._d(this.time.delayedCall(star.getData('delay'), () => {
+        if (this._settled || !this.sys.isActive()) return;
+        star.setPosition(star.getData('baseX'), star.getData('baseY'));
+        this._t(this.tweens.add({
+          targets: star,
+          alpha: 1,
+          scale: { from: 0.1, to: 1.18 },
+          y: { from: star.getData('baseY') - 38, to: star.getData('baseY') },
+          duration: 280,
+          ease: 'Back.Out',
+          onComplete: () => {
+            if (this._settled || !this.sys.isActive()) return;
+            this._t(this.tweens.add({
+              targets: star,
+              scale: 1,
+              duration: 90,
+              ease: 'Sine.Out',
+              onComplete: () => {
+                star.setScale(1).setAlpha(1);
+                if (star.getData('isLast')) {
+                  this._wiggleLastStar(star, done);
+                } else {
+                  done();
+                }
+              },
+            }));
+          },
+        }));
+      }));
+    }
   }
 
   // ─── 스킵 / 정산(단일 진실 공급원) ────────────────────────────────────────────

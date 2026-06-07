@@ -11,6 +11,7 @@ export class JejuStageSet {
     this.root = new THREE.Group();
     this.root.name = 'JejuStageSet';
     this.foam = [];
+    this.currents = [];
     this.spray = [];
     this.cloudBands = [];
     this.backdropTex = null;
@@ -19,6 +20,7 @@ export class JejuStageSet {
 
     this._buildScenicBackdrop();
     this._buildFoamBands();
+    this._buildCurrentStreaks();
     this._buildSeaGlitter();
     this._buildPixelCloudBands();
 
@@ -37,6 +39,15 @@ export class JejuStageSet {
       band.position.z = band.userData.z + Math.sin(t * 1.2 + phase) * band.userData.bobZ;
       band.position.y = band.userData.y + Math.sin(t * 2.4 + phase) * band.userData.bobY;
       band.material.opacity = band.userData.alpha + (Math.sin(t * 3.0 + phase) + 1) * 0.09;
+    }
+
+    for (const current of this.currents) {
+      const phase = current.userData.phase;
+      const drift = (t * current.userData.speed + phase) % current.userData.loop;
+      current.position.x = current.userData.x - drift;
+      current.position.z = current.userData.z + Math.sin(t * 1.35 + phase) * current.userData.bobZ;
+      current.position.y = current.userData.y + Math.sin(t * 2.1 + phase) * current.userData.bobY;
+      current.material.opacity = current.userData.alpha + (Math.sin(t * 2.8 + phase) + 1) * current.userData.pulse;
     }
 
     for (const drop of this.spray) {
@@ -205,15 +216,15 @@ export class JejuStageSet {
 
   _buildFoamBands() {
     const defs = [
-      [-34, -18, 7.2, 0.16, 0.8, 1.1, 8.5, 0.50],
-      [-29, -14, 6.4, 0.15, 1.8, 0.9, 7.5, 0.48],
-      [-23, -10, 5.3, 0.13, 2.9, 0.8, 7.0, 0.42],
-      [-15, -5, 5.8, 0.11, 0.4, 0.65, 8.0, 0.34],
-      [-6, -2, 5.0, 0.10, 2.2, 0.62, 7.0, 0.30],
-      [3, 0, 5.7, 0.10, 3.1, 0.58, 7.6, 0.28],
-      [14, 2, 5.2, 0.11, 1.3, 0.56, 7.3, 0.30],
-      [26, 4, 4.6, 0.09, 2.7, 0.52, 6.6, 0.26],
-      [39, 6, 3.6, 0.08, 1.0, 0.48, 6.0, 0.24],
+      [-34, -6,  7.2, 0.18, 0.8, 1.28, 8.5, 0.58],   // z -18→-6: 수평선 너머 하늘에 뜨지 않도록
+      [-29, -5,  6.4, 0.17, 1.8, 1.08, 7.5, 0.56],   // z -14→-5
+      [-23, -4,  5.3, 0.15, 2.9, 0.96, 7.0, 0.50],   // z -10→-4 (far plane far edge 근처)
+      [-15, -5, 5.8, 0.13, 0.4, 0.78, 8.0, 0.40],
+      [-6, -2, 5.0, 0.12, 2.2, 0.74, 7.0, 0.36],
+      [3, 0, 5.7, 0.12, 3.1, 0.70, 7.6, 0.34],
+      [14, 2, 5.2, 0.13, 1.3, 0.68, 7.3, 0.36],
+      [26, 4, 4.6, 0.11, 2.7, 0.62, 6.6, 0.32],
+      [39, 6, 3.6, 0.10, 1.0, 0.58, 6.0, 0.30],
     ];
 
     for (const [x, z, w, h, phase, speed, loop, alpha] of defs) {
@@ -227,7 +238,7 @@ export class JejuStageSet {
       const strip = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
       strip.rotation.x = -Math.PI / 2;
       strip.position.set(x, 0.96, z);
-      strip.userData = { x, z, y: 0.96, phase, speed, loop, alpha, bobZ: 0.22, bobY: 0.04 };
+      strip.userData = { x, z, y: 0.96, phase, speed, loop, alpha, bobZ: 0.34, bobY: 0.06 };
       this.scene.add(strip);
       this.foam.push(strip);
     }
@@ -247,7 +258,7 @@ export class JejuStageSet {
       const strip = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
       strip.rotation.x = -Math.PI / 2;
       strip.position.set(x, 1.04, z);
-      strip.userData = { x, z, y: 1.04, phase, speed: 0.38, loop: 3.8, alpha: 0.48, bobZ: 0.12, bobY: 0.06 };
+      strip.userData = { x, z, y: 1.04, phase, speed: 0.46, loop: 3.8, alpha: 0.56, bobZ: 0.18, bobY: 0.08 };
       this.scene.add(strip);
       this.foam.push(strip);
     }
@@ -261,7 +272,7 @@ export class JejuStageSet {
         ...FOG_FREE,
       });
       const drop = new THREE.Mesh(new THREE.CircleGeometry(0.06 + (i % 4) * 0.025, 6), mat);
-      drop.position.set(-35 + (i % 12) * 0.9, 0.95 + (i % 3) * 0.12, -17 - Math.floor(i / 12) * 2.3);
+      drop.position.set(-35 + (i % 12) * 0.9, 0.95 + (i % 3) * 0.12, -5 - Math.floor(i / 12) * 0.8);
       drop.rotation.x = -Math.PI / 2;
       drop.userData = {
         x: drop.position.x,
@@ -273,6 +284,34 @@ export class JejuStageSet {
       };
       this.scene.add(drop);
       this.spray.push(drop);
+    }
+  }
+
+  _buildCurrentStreaks() {
+    const defs = [
+      [-38, -6,   10.5, 0.045, 0.0, 1.45, 14, 0.20],   // z -9.5→-6: 수평선 너머 하늘에 뜨지 않도록
+      [-24, -6,    8.0, 0.04,  1.1, 1.22, 12, 0.16],   // z -7.1→-6
+      [-10, -4.1, 12.0, 0.05, 2.2, 1.08, 15, 0.18],
+      [5, -1.5, 9.0, 0.04, 0.6, 0.96, 12, 0.15],
+      [18, 1.3, 11.5, 0.045, 1.8, 0.9, 14, 0.16],
+      [33, 4.8, 7.5, 0.035, 2.9, 0.82, 11, 0.14],
+    ];
+
+    for (const [x, z, w, h, phase, speed, loop, alpha] of defs) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xdfffff,
+        transparent: true,
+        opacity: alpha,
+        depthWrite: false,
+        ...FOG_FREE,
+      });
+      const streak = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+      streak.rotation.x = -Math.PI / 2;
+      streak.rotation.z = -0.04;
+      streak.position.set(x, 1.02, z);
+      streak.userData = { x, z, y: 1.02, phase, speed, loop, alpha, bobZ: 0.42, bobY: 0.035, pulse: 0.08 };
+      this.scene.add(streak);
+      this.currents.push(streak);
     }
   }
 

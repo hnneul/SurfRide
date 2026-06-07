@@ -40,6 +40,7 @@ class SignalInstance {
     this.scene    = scene;
     this.event    = event;
     this.type     = event.signalType ?? OBSTACLE_META[event.obstacleType].signalType;
+    this.variant  = event.variant ?? null;
     this.x        = spawnX;
     this.y        = eventRideY(event);
     this.duration = event.telegraphMs;
@@ -74,9 +75,17 @@ class SignalInstance {
     switch (this.type) {
       case SignalType.SPLASH: {        // 날치 — 물 튀는 확장 링
         const r = 16 + p * 38;
-        gfx.lineStyle(4, 0xffffff, 1 - p * 0.6);
+        const burst = this.variant === 'burst';
+        gfx.lineStyle(burst ? 6 : 4, burst ? 0xff4d35 : 0xffffff, 1 - p * 0.6);
         gfx.strokeCircle(x, y, r);
-        gfx.fillStyle(0xbfe7ff, 1 - p * 0.5);
+        if (burst) {
+          const blink = (Math.sin(this.elapsed * 0.035) + 1) / 2;
+          gfx.fillStyle(0xff3d25, 0.18 + blink * 0.18);
+          gfx.fillCircle(x, y, 42 + p * 20);
+          gfx.lineStyle(3, 0xffd1c8, 0.55 + blink * 0.35);
+          gfx.strokeCircle(x, y, 18 + p * 48);
+        }
+        gfx.fillStyle(burst ? 0xffb07a : 0xbfe7ff, 1 - p * 0.5);
         gfx.fillCircle(x, y - p * 24, 6);
         gfx.fillCircle(x + 14, y - p * 14, 4);
         gfx.fillCircle(x - 12, y - p * 18, 4);
@@ -191,12 +200,18 @@ const OBSTACLE_TEXTURE_KEY = {
   [ObstacleType.LIGHTNING]:   'obstacle-lightning',
 };
 
+const FLYING_FISH_TEXTURE_KEY = {
+  small: 'obstacle-flying-fish-small',
+  burst: 'obstacle-flying-fish-burst',
+};
+
 // 분출 단계 머신: RISE(솟구침) → ACTIVE(노출) → SINK(가라앉음) → done.
 // ERUPT_X 열에서 제자리 분출(x 고정).
 class ObstacleInstance {
   constructor(event, spawnX, scene) {
     this.scene   = scene;
     this.type    = event.obstacleType;
+    this.variant = this.type === ObstacleType.FLYING_FISH ? (event.variant ?? 'small') : null;
     this.targetY = eventRideY(event);
     this.x       = spawnX;
     this.y       = this.targetY;
@@ -213,10 +228,11 @@ class ObstacleInstance {
     this.resolved      = false;   // 안전 통과 처리 완료
     this.hitByPlayer   = false;
 
-    const meta   = OBSTACLE_META[this.type];
-    this.hitboxW = meta.hitboxW;
-    this.hitboxH = meta.hitboxH;
-    this.visualScale = meta.visualScale ?? 1;               // 3D 메시 크기 배율(three/obstacles.js)
+    const meta = OBSTACLE_META[this.type];
+    const burstFlyingFish = this.type === ObstacleType.FLYING_FISH && this.variant === 'burst';
+    this.hitboxW = burstFlyingFish ? 104 : meta.hitboxW;
+    this.hitboxH = burstFlyingFish ?  48 : meta.hitboxH;
+    this.visualScale = burstFlyingFish ? 1.16 : (meta.visualScale ?? 1);   // 3D 메시 크기 배율(three/obstacles.js)
     this.avoidMode = meta.avoid;                            // 'jump' | 'move'
     this.fromAbove = this.type === ObstacleType.LIGHTNING;  // 번개는 위→아래
     this.parts   = {};
@@ -278,12 +294,17 @@ class ObstacleInstance {
   }
 
   _buildPixelSprite() {
-    const key = OBSTACLE_TEXTURE_KEY[this.type];
+    const key = this.type === ObstacleType.FLYING_FISH
+      ? FLYING_FISH_TEXTURE_KEY[this.variant] ?? FLYING_FISH_TEXTURE_KEY.small
+      : OBSTACLE_TEXTURE_KEY[this.type];
     if (!key || !this.scene.textures.exists(key)) return false;
 
     const img = this.scene.add.image(0, 0, key)
       .setOrigin(0.5)
-      .setDisplaySize(this.hitboxW * 1.08, this.hitboxH * 1.22);
+      .setDisplaySize(
+        this.hitboxW * (this.variant === 'burst' ? 1.22 : 1.08),
+        this.hitboxH * (this.variant === 'burst' ? 1.34 : 1.22),
+      );
 
     this.parts.sprite = img;
     this.parts.spriteBaseScaleX = img.scaleX;
