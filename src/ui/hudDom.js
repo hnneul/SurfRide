@@ -73,11 +73,6 @@ export function mountHud(parent = document.getElementById('game-container')) {
     marker:       root.querySelector('.hud__balance-marker'),
   };
 
-  // 밸런스 안전구역(중앙 녹색대)은 1회만 배치 — 마커 범위[0,1] 중 |tilt|<WARN_AT 구간
-  const safeFrac = BALANCE.WARN_AT / BALANCE.WIPEOUT_AT;
-  el.safe.style.left  = `${50 - safeFrac * 50}%`;
-  el.safe.style.width = `${safeFrac * 100}%`;
-
   let heartCount = -1;
   let prevPerfect = 0;
   let perfectToastTimer = null;
@@ -148,8 +143,13 @@ export function mountHud(parent = document.getElementById('game-container')) {
       el.tutorial.hidden = true;
     }
 
+    const wipeoutAt = s.wipeoutAt ?? BALANCE.WIPEOUT_AT;
+    const safeFrac = BALANCE.WARN_AT / wipeoutAt;
+    el.safe.style.left  = `${50 - safeFrac * 50}%`;
+    el.safe.style.width = `${safeFrac * 100}%`;
+
     // 밸런스 마커 — tilt[-WIPEOUT..WIPEOUT] → 0~100%
-    const t = Math.max(-1, Math.min(1, s.tilt / BALANCE.WIPEOUT_AT));
+    const t = Math.max(-1, Math.min(1, s.tilt / wipeoutAt));
     el.marker.style.left = `${50 + t * 50}%`;
     el.marker.classList.toggle('is-warn', Math.abs(s.tilt) >= BALANCE.WARN_AT);
   }
