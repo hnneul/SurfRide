@@ -5,10 +5,10 @@ import menuLogo from '../../img/surfride-logo-v3-cutout.png';
 import menuBackground from '../../img/main-menu-surf-dog.png';
 
 const CONTROLS = [
-  ['↑ / ↓', '파도 면을 타고 위(안전)·아래(거친 바다 ×1.5)로 이동'],
-  ['← / →', '보드 균형 잡기 — 무너지면 와이프아웃!'],
-  ['Space', '점프로 솟구친 장애물을 뛰어넘기 (공중=균형 안정)'],
-  ['P / ESC', '일시정지 메뉴 열기·닫기'],
+  ['↑ / ↓', '파도 위아래로 이동하며 안전한 라인을 찾아요'],
+  ['← / →', '보드 균형을 잡아요. 너무 기울면 와이프아웃!'],
+  ['Space', '점프로 장애물을 뛰어넘고 트릭 점수를 노려요'],
+  ['P / ESC', '잠깐 멈추거나 다시 서핑을 이어가요'],
 ];
 
 export function mountMainMenu({ save, storage, stages, onStart, onContinue, onWorldMap }) {
@@ -117,18 +117,27 @@ function openControls(overlay) {
   modal.className = 'modal';
   modal.innerHTML = `
     <div class="modal__backdrop" data-close></div>
-    <div class="modal__panel" role="dialog" aria-modal="true" aria-label="조작법">
-      <h2 class="modal__title">조작법</h2>
+    <div class="modal__panel modal__panel--controls" role="dialog" aria-modal="true" aria-label="조작법">
+      <button class="modal__x" type="button" data-close aria-label="닫기">×</button>
+      <div class="modal__header">
+        <span class="modal__eyebrow">SURF GUIDE</span>
+        <h2 class="modal__title">파도 타는 법</h2>
+        <p class="modal__lead">균형을 지키면서 장애물을 피하고, 좋은 타이밍에 점수를 쌓아보세요.</p>
+      </div>
       <ul class="modal__rows">
         ${CONTROLS.map(
-          ([key, desc]) => `
-          <li class="modal__row">
+          ([key, desc], index) => `
+          <li class="modal__row" style="--row:${index}">
             <kbd class="modal__key">${escapeHtml(key)}</kbd>
             <span class="modal__desc">${escapeHtml(desc)}</span>
           </li>`,
         ).join('')}
       </ul>
-      <button class="btn btn--primary modal__close" data-close>닫기 (ESC)</button>
+      <div class="modal__tip">
+        <strong>TIP</strong>
+        <span>아래쪽 거친 바다는 위험하지만 점수 배율이 더 높아요.</span>
+      </div>
+      <button class="btn btn--primary modal__close" data-close>출발 준비 완료</button>
     </div>`;
   modal.addEventListener('click', (e) => {
     if (e.target.closest('[data-close]')) closeControls(overlay);
