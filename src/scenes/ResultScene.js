@@ -12,8 +12,16 @@ const ORANGE = '#ffb74d';   // 아슬아슬(따뜻한 경고)
 const SOFT   = '#9fb8d4';   // 기록까지 멀 때(차분한 슬레이트)
 const GOLD   = '#ffd700';   // 힌트/격려/하이라이트
 
+const GAME_OVER_BG = 'game-over-night-ocean-neon';
+
 export default class ResultScene extends Phaser.Scene {
   constructor() { super({ key: 'ResultScene' }); }
+
+  preload() {
+    if (!this.textures.exists(GAME_OVER_BG)) {
+      this.load.image(GAME_OVER_BG, '/game-over-night-ocean-neon.png');
+    }
+  }
 
   /** @param {ResultScenePayload} data */
   init(data) {
@@ -44,7 +52,7 @@ export default class ResultScene extends Phaser.Scene {
     this._closeThreshold = Math.max(500, Math.round(pv * 0.10));
     this._isClose        = this._recordGap > 0 && this._recordGap <= this._closeThreshold;
 
-    this.add.graphics().fillStyle(0x000000, 0.85).fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+    this._renderBackdrop();
 
     const startY = this.cleared ? this._clearHeader(cx) : this._gameOverHeader(cx);
     this.rows  = this._buildRowModel();    // 순수 데이터
@@ -62,6 +70,64 @@ export default class ResultScene extends Phaser.Scene {
   _d(h) { this._timers.push(h); return h; }
 
   // ─── 헤더 ────────────────────────────────────────────────────────────────────
+  _renderBackdrop() {
+    if (!this.cleared && this.textures.exists(GAME_OVER_BG)) {
+      const bg = this.add.image(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, GAME_OVER_BG)
+        .setOrigin(0.5)
+        .setDepth(-20);
+      bg.setScale(Math.max(LOGICAL_WIDTH / bg.width, LOGICAL_HEIGHT / bg.height));
+
+      this.add.graphics().setDepth(-19)
+        .fillStyle(0x01081a, 0.34).fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT)
+        .fillStyle(0x000000, 0.40).fillRect(0, 760, LOGICAL_WIDTH, 320);
+
+      this._ambientGameOver();
+      return;
+    }
+
+    this.add.graphics().fillStyle(0x000000, 0.85).fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+  }
+
+  _ambientGameOver() {
+    const shimmer = this.add.graphics().setDepth(-17).setAlpha(0.0);
+    for (let i = 0; i < 12; i++) {
+      const y = 516 + i * 8;
+      shimmer.lineStyle(2, 0x69e7ff, 0.18 - i * 0.008)
+        .beginPath()
+        .moveTo(640 - i * 18, y)
+        .lineTo(1280 + i * 18, y + Phaser.Math.Between(-3, 3))
+        .strokePath();
+    }
+    this._t(this.tweens.add({
+      targets: shimmer,
+      alpha: { from: 0.08, to: 0.34 },
+      x: { from: -26, to: 26 },
+      duration: 2200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    }));
+
+    for (let i = 0; i < 18; i++) {
+      const bubble = this.add.circle(
+        Phaser.Math.Between(120, LOGICAL_WIDTH - 120),
+        Phaser.Math.Between(660, 1010),
+        Phaser.Math.Between(3, 9),
+        0x63dfff,
+        Phaser.Math.FloatBetween(0.10, 0.28),
+      ).setStrokeStyle(1, 0x7bf4ff, 0.22).setDepth(-16);
+      this._t(this.tweens.add({
+        targets: bubble,
+        y: bubble.y - Phaser.Math.Between(60, 130),
+        alpha: { from: bubble.alpha, to: 0 },
+        duration: Phaser.Math.Between(2600, 5200),
+        delay: Phaser.Math.Between(0, 1800),
+        repeat: -1,
+        ease: 'Sine.InOut',
+      }));
+    }
+  }
+
   _clearHeader(cx) {
     this.add.text(cx, 120, 'STAGE CLEAR!', {
       fontSize: '72px', fontFamily: 'sans-serif', color: '#4fc3f7', fontStyle: 'bold',
@@ -78,26 +144,23 @@ export default class ResultScene extends Phaser.Scene {
   }
 
   _gameOverHeader(cx) {
-    this.add.text(cx, 84, 'GAME OVER', {
-      fontSize: '56px', fontFamily: 'sans-serif', color: '#ff4444', fontStyle: 'bold',
-    }).setOrigin(0.5);
+    if (this.cause === 'wipeout') this._causeWipeout(cx, 552);
+    else                          this._causeCollision(cx, 552);
 
-    if (this.cause === 'wipeout') this._causeWipeout(cx);
-    else                          this._causeCollision(cx);
-
-    return 248;
+    return 646;
   }
 
   // 와이프아웃: 보드가 한 바퀴 돌며 물보라 + 큰 WIPEOUT! (상단 밴드 y≤230, 점수/버튼 영역 침범 금지)
-  _causeWipeout(cx) {
-    const title = this.add.text(cx, 156, 'WIPEOUT!', {
-      fontSize: '54px', fontFamily: 'sans-serif', color: '#4fc3f7', fontStyle: 'bold',
+  _causeWipeout(cx, y = 156) {
+    const title = this.add.text(cx, y, 'WIPEOUT!', {
+      fontSize: '42px', fontFamily: 'sans-serif', color: '#89f8ff', fontStyle: 'bold',
+      shadow: { offsetX: 0, offsetY: 0, color: '#007dff', blur: 14, fill: true },
     }).setOrigin(0.5).setAlpha(0).setScale(0.4);
     this._t(this.tweens.add({ targets: title, alpha: 1, scale: 1, duration: 300, ease: 'Back.Out' }));
     this._cause.push({ obj: title, apply: () => title.setAlpha(1).setScale(1) });
 
     // 보드(타이틀 우측) 한 바퀴 회전
-    const bx = cx + 300, by = 156;
+    const bx = cx + 286, by = y;
     const boardBody = this.add.ellipse(0, 0, 110, 26, 0xffcc66).setStrokeStyle(3, 0xffffff, 0.85);
     const stripe    = this.add.rectangle(0, 0, 110, 6, 0xff8a3d);
     const board     = this.add.container(bx, by, [boardBody, stripe]);
@@ -112,18 +175,19 @@ export default class ResultScene extends Phaser.Scene {
     }));
     this._cause.push({ obj: ring, apply: () => ring.destroy() });
 
-    this.add.text(cx, 210, '← → 로 균형을 잡으세요', {
-      fontSize: '27px', fontFamily: 'sans-serif', color: '#ffb4b4',
+    this.add.text(cx, y + 48, '← → 로 균형을 잡으세요', {
+      fontSize: '22px', fontFamily: 'sans-serif', color: '#b8d9ff',
     }).setOrigin(0.5);
   }
 
   // 충돌: 장애물 이름을 크게 + 짧은 코믹 리액션(상단 밴드)
-  _causeCollision(cx) {
+  _causeCollision(cx, y = 152) {
     const meta = this.hitObstacle ? OBSTACLE_META[this.hitObstacle.type] : null;
     const name = meta?.name ?? '장애물';
 
-    const big = this.add.text(cx, 152, `${name}!`, {
-      fontSize: '58px', fontFamily: 'sans-serif', color: '#ff8a3d', fontStyle: 'bold',
+    const big = this.add.text(cx, y, `${name}!`, {
+      fontSize: '42px', fontFamily: 'sans-serif', color: '#89f8ff', fontStyle: 'bold',
+      shadow: { offsetX: 0, offsetY: 0, color: '#007dff', blur: 14, fill: true },
     }).setOrigin(0.5).setAlpha(0).setScale(0.4);
     this._t(this.tweens.add({ targets: big, alpha: 1, scale: 1, duration: 300, ease: 'Back.Out' }));
     this._cause.push({ obj: big, apply: () => big.setAlpha(1).setScale(1) });
@@ -137,11 +201,11 @@ export default class ResultScene extends Phaser.Scene {
       LIGHTNING:   '번개를 못 피했어요',
     };
     const quip = QUIPS[this.hitObstacle?.type] ?? `${name}에 부딪혔어요`;
-    const sub  = this.add.text(cx, 208, quip, {
-      fontSize: '30px', fontFamily: 'sans-serif', color: '#ffb4b4',
+    const sub  = this.add.text(cx, y + 48, quip, {
+      fontSize: '22px', fontFamily: 'sans-serif', color: '#b8d9ff',
     }).setOrigin(0.5).setAlpha(0);
-    this._t(this.tweens.add({ targets: sub, alpha: 1, y: 202, duration: 240, delay: 180, ease: 'Quad.Out' }));
-    this._cause.push({ obj: sub, apply: () => sub.setAlpha(1).setY(202) });
+    this._t(this.tweens.add({ targets: sub, alpha: 1, y: y + 42, duration: 240, delay: 180, ease: 'Quad.Out' }));
+    this._cause.push({ obj: sub, apply: () => sub.setAlpha(1).setY(y + 42) });
   }
 
   // ─── 데이터 모델(순수) ────────────────────────────────────────────────────────
@@ -157,6 +221,17 @@ export default class ResultScene extends Phaser.Scene {
       { label: '기상이변 보너스 ×2', value: b[E.WEATHER_BONUS] },
     ];
     if (this.cleared) defs.push({ label: '스테이지 클리어', value: b[E.STAGE_CLEAR] });
+
+    if (!this.cleared) {
+      const compact = defs
+        .filter(d => (d.value ?? 0) > 0)
+        .filter(d => !d.label.includes('기상이변'))
+        .slice(0, 5);
+      return (compact.length ? compact : defs.slice(0, 4)).map(d => {
+        const value = d.value ?? 0;
+        return { label: d.label, value, color: value === 0 ? '#526a88' : '#d7f8ff' };
+      });
+    }
 
     return defs.map(d => {
       const value = d.value ?? 0;
@@ -177,15 +252,19 @@ export default class ResultScene extends Phaser.Scene {
 
   // ─── 정적 렌더(모두 0/숨김 상태) ──────────────────────────────────────────────
   _renderStatic(cx, startY) {
-    const step = 40, lx = cx - 300, rx = cx + 300;
+    if (!this.cleared) this._renderGameOverPanel(cx);
+
+    const step = this.cleared ? 40 : 30;
+    const lx = this.cleared ? cx - 300 : cx - 332;
+    const rx = this.cleared ? cx + 300 : cx + 332;
 
     this.rows.forEach((row, i) => {
       const y = startY + i * step;
       row.labelObj = this.add.text(lx, y, row.label, {
-        fontSize: '26px', fontFamily: 'sans-serif', color: row.color,
+        fontSize: this.cleared ? '26px' : '21px', fontFamily: 'sans-serif', color: row.color,
       }).setOrigin(0, 0.5).setAlpha(0).setData('baseY', y);
       row.valueObj = this.add.text(rx, y, '0', {
-        fontSize: '26px', fontFamily: 'sans-serif', color: row.color,
+        fontSize: this.cleared ? '26px' : '21px', fontFamily: 'sans-serif', color: row.color,
       }).setOrigin(1, 0.5).setAlpha(0).setData('baseY', y);
     });
 
@@ -196,25 +275,49 @@ export default class ResultScene extends Phaser.Scene {
 
     yt += 28;
     this.totalLabel = this.add.text(lx, yt, '총점', {
-      fontSize: '40px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
+      fontSize: this.cleared ? '40px' : '34px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
+      shadow: this.cleared ? undefined : { offsetX: 0, offsetY: 0, color: '#00aaff', blur: 10, fill: true },
     }).setOrigin(0, 0.5).setAlpha(0);
     this.totalObj = this.add.text(rx, yt, '0', {
-      fontSize: '40px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
+      fontSize: this.cleared ? '40px' : '34px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
+      shadow: this.cleared ? undefined : { offsetX: 0, offsetY: 0, color: '#00aaff', blur: 10, fill: true },
     }).setOrigin(1, 0.5).setAlpha(0).setData('baseY', yt);
 
     const post = (dy, txt, style) => {
+      if (!txt) return null;
       yt += dy;
       return this.add.text(cx, yt, txt, style).setOrigin(0.5).setAlpha(0).setData('baseY', yt);
     };
-    this.diffObj  = post(62, this.final.diff.label,    { fontSize: '28px', fontFamily: 'sans-serif', color: this.final.diff.color,  fontStyle: 'bold' });
-    this.statsObj = post(42, this.final.statsText,      { fontSize: '24px', fontFamily: 'sans-serif', color: '#9fb8d4' });
-    this.hintObj  = post(46, `💡 ${this.final.hintText}`, { fontSize: '28px', fontFamily: 'sans-serif', color: '#ffd700', fontStyle: 'bold' });
-    this.badgeObj = post(44, this.final.badge.label,    { fontSize: '28px', fontFamily: 'sans-serif', color: this.final.badge.color, fontStyle: 'bold' });
+    const diffLabel = this.cleared ? this.final.diff.label : this._plainGameOverLine(this.final.diff.label);
+    const encourageLabel = this.cleared ? this.final.encourage.label : this._plainGameOverLine(this.final.encourage.label);
+    this.diffObj  = post(this.cleared ? 62 : 42, diffLabel, { fontSize: this.cleared ? '28px' : '22px', fontFamily: 'sans-serif', color: this.final.diff.color, fontStyle: 'bold' });
+    this.statsObj = post(this.cleared ? 42 : 0, this.cleared ? this.final.statsText : null, { fontSize: '24px', fontFamily: 'sans-serif', color: '#9fb8d4' });
+    this.hintObj  = post(this.cleared ? 46 : 0, this.cleared ? `💡 ${this.final.hintText}` : null, { fontSize: '28px', fontFamily: 'sans-serif', color: '#ffd700', fontStyle: 'bold' });
+    this.badgeObj = post(this.cleared ? 44 : 0, this.cleared ? this.final.badge.label : null, { fontSize: '28px', fontFamily: 'sans-serif', color: this.final.badge.color, fontStyle: 'bold' });
 
     // 격려 문구는 버튼(y=928) 바로 위에 고정 — 누적 배치가 버튼을 침범하지 않도록
-    this.encourageObj = this.add.text(cx, 864, this.final.encourage.label, {
-      fontSize: '28px', fontFamily: 'sans-serif', color: this.final.encourage.color, fontStyle: 'bold',
-    }).setOrigin(0.5).setAlpha(0).setData('baseY', 864);
+    const encourageY = this.cleared ? 864 : 912;
+    this.encourageObj = this.add.text(cx, encourageY, encourageLabel, {
+      fontSize: this.cleared ? '28px' : '20px', fontFamily: 'sans-serif', color: this.final.encourage.color, fontStyle: 'bold',
+    }).setOrigin(0.5).setAlpha(0).setData('baseY', encourageY);
+  }
+
+  _plainGameOverLine(label) {
+    return label
+      .replace(/[^\p{L}\p{N}\s+,.!×]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  _renderGameOverPanel(cx) {
+    const panel = this.add.graphics();
+    panel.setDepth(-2);
+    panel.fillStyle(0x020816, 0.72);
+    panel.lineStyle(2, 0x1ddfff, 0.42);
+    panel.fillRoundedRect(cx - 410, 620, 820, 320, 8);
+    panel.strokeRoundedRect(cx - 410, 620, 820, 320, 8);
+    panel.lineStyle(1, 0x7af7ff, 0.18)
+      .beginPath().moveTo(cx - 380, 628).lineTo(cx + 380, 628).strokePath();
   }
 
   // ─── 카운트업 시퀀스 ──────────────────────────────────────────────────────────
@@ -286,12 +389,12 @@ export default class ResultScene extends Phaser.Scene {
       }));
     };
     reveal(this.diffObj, 0);
-    reveal(this.statsObj, 110);
-    reveal(this.hintObj, 220);
-    reveal(this.badgeObj, 330);
-    reveal(this.encourageObj, 440);
+    reveal(this.statsObj, this.cleared ? 110 : 0);
+    reveal(this.hintObj, this.cleared ? 220 : 0);
+    reveal(this.badgeObj, this.cleared ? 330 : 0);
+    reveal(this.encourageObj, this.cleared ? 440 : 120);
 
-    this._d(this.time.delayedCall(440 + 240, () => {
+    this._d(this.time.delayedCall((this.cleared ? 440 : 120) + 240, () => {
       if (this._settled || !this.sys.isActive()) return;
       this._settle();
     }));
@@ -424,7 +527,7 @@ export default class ResultScene extends Phaser.Scene {
 
   // ─── 버튼 ────────────────────────────────────────────────────────────────────
   _renderButtons(cx) {
-    const y = 928;
+    const y = this.cleared ? 928 : 978;
     if (this.cleared) {
       this.retryBtn = this._btn(cx - 140, y, 220, 64, '다시 도전', false,
         () => this.scene.start('GameScene', { stageIndex: this.stageIndex }));
@@ -445,13 +548,16 @@ export default class ResultScene extends Phaser.Scene {
   // 컨테이너로 만들어 펄스(스케일) 시 박스+라벨이 함께 커지도록
   _btn(cx, cy, w, h, label, primary, cb) {
     const gfx = this.add.graphics();
-    gfx.fillStyle(primary ? 0x1565c0 : 0x000000, primary ? 1 : 0.12);
-    gfx.lineStyle(2, primary ? 0x42a5f5 : 0xffffff, primary ? 1 : 0.3);
-    gfx.fillRoundedRect(-w / 2, -h / 2, w, h, 10);
-    gfx.strokeRoundedRect(-w / 2, -h / 2, w, h, 10);
+    gfx.fillStyle(primary ? 0x063b7a : 0x010916, primary ? 0.88 : 0.64);
+    gfx.lineStyle(2, primary ? 0x48edff : 0x3f7ca3, primary ? 1 : 0.78);
+    gfx.fillRoundedRect(-w / 2, -h / 2, w, h, 8);
+    gfx.strokeRoundedRect(-w / 2, -h / 2, w, h, 8);
+    gfx.lineStyle(1, 0xb9fbff, primary ? 0.45 : 0.20);
+    gfx.strokeRoundedRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8, 6);
 
     const txt = this.add.text(0, 0, label, {
-      fontSize: '28px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
+      fontSize: '26px', fontFamily: 'sans-serif', color: '#ffffff', fontStyle: 'bold',
+      shadow: { offsetX: 0, offsetY: 0, color: primary ? '#00aaff' : '#0a5a8e', blur: primary ? 10 : 6, fill: true },
     }).setOrigin(0.5);
 
     const c = this.add.container(cx, cy, [gfx, txt]).setSize(w, h);
