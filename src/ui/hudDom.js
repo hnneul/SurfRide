@@ -167,8 +167,13 @@ export function mountHud(parent = document.getElementById('game-container')) {
     el.flash.style.opacity = '0';
   }
 
-  function perfectJump() {
+  // 퍼펙트 점프·에어 트릭이 공유하는 토스트(같은 DOM 재활용 — 별도 CSS 불필요)
+  function showToast(title, sub) {
     if (perfectToastTimer) clearTimeout(perfectToastTimer);
+    const strong = el.perfectToast.querySelector('strong');
+    const span   = el.perfectToast.querySelector('span');
+    if (strong) strong.textContent = title;
+    if (span)   span.textContent   = sub;
     el.perfectToast.hidden = false;
     el.perfectToast.classList.remove('is-pop');
     void el.perfectToast.offsetWidth;
@@ -179,10 +184,19 @@ export function mountHud(parent = document.getElementById('game-container')) {
     }, 760);
   }
 
+  function perfectJump() { showToast('PERFECT JUMP', '+200'); }
+
+  function trick(halfSpins, pts) {
+    const deg   = halfSpins * 180;
+    const bangs = halfSpins >= 3 ? '!!' : halfSpins === 2 ? '!' : '';
+    showToast(`${deg}° 스핀${bangs}`, `+${pts}`);
+  }
+
   return {
     update,
     flash,
     perfectJump,
+    trick,
     destroy() {
       if (perfectToastTimer) clearTimeout(perfectToastTimer);
       root.remove();

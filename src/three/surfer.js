@@ -27,12 +27,17 @@ export class Surfer {
     if (!this.group || !player) return;
     const bob  = Math.sin(t * 2) * 0.06;                  // 파도 출렁임
     const jump = (player.jumpOffset ?? 0) / PX_PER_UNIT;  // 점프 높이(게임 px → 월드)
+    const dive = (player.diveOffset ?? 0) / PX_PER_UNIT;  // 잠수 깊이(아래로)
     this.group.position.set(
       gameX2WorldX(player.x),
-      WATER_Y + bob + jump,
+      WATER_Y + bob + jump - dive,
       rideY2WorldZ(player.baseY),
     );
-    const lean = (cursors?.left?.isDown ? -0.08 : 0) + (cursors?.right?.isDown ? 0.08 : 0);
-    this.group.rotation.z = Math.sin(t * 1.8) * 0.06 + lean;
+    const grounded = player.isGrounded ?? true;
+    // 지상: 좌우 기울임(카빙). 공중: 좌우가 스핀이 되므로 누적 트릭 회전을 그대로 반영.
+    const lean    = grounded ? ((cursors?.left?.isDown ? -0.08 : 0) + (cursors?.right?.isDown ? 0.08 : 0)) : 0;
+    const trick   = grounded ? 0 : (player.trickRotation ?? 0);
+    const stagger = (player.staggerMs ?? 0) > 0 ? Math.sin(t * 46) * 0.22 : 0;   // botch 비틀거림 흔들
+    this.group.rotation.z = Math.sin(t * 1.8) * 0.06 + lean + trick + stagger;
   }
 }

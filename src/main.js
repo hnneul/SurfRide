@@ -22,4 +22,5 @@ const config = {
   scene: [BootScene, MainMenuScene, WorldMapScene, GameScene, HUDScene, PauseScene, ResultScene],
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+if (import.meta.env.DEV) window.game = game;   // 개발용 디버그 접근 (프로덕션 빌드엔 미포함)

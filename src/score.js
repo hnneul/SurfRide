@@ -7,6 +7,7 @@ export const SCORE = Object.freeze({
   DODGE:            100,
   NEAR_MISS:        150,   // 아슬아슬 회피 보너스
   PERFECT_JUMP:     200,
+  TRICK_PER_HALF:   140,   // 에어 트릭: 완성한 180°(반바퀴)당 점수
   DANGER_PER_SEC:    30,   // 위험 구간 체류 시 초당 보너스
   GOLDEN_FISH:      500,   // 황금 물고기 획득
   STAGE_CLEAR:     1000,
@@ -27,6 +28,7 @@ export const ScoreEvent = Object.freeze({
   DODGE:          'DODGE',
   NEAR_MISS:      'NEAR_MISS',
   PERFECT_JUMP:   'PERFECT_JUMP',
+  TRICK:          'TRICK',
   COMBO_BONUS:    'COMBO_BONUS',
   DANGER_LANE:    'DANGER_LANE',
   GOLDEN_FISH:    'GOLDEN_FISH',
@@ -49,6 +51,8 @@ export class ScoreManager {
     this.combo               = 0;
     this.maxCombo            = 0;
     this.perfectJumps        = 0;
+    this.tricks              = 0;    // 성공(클린 랜딩)한 에어 트릭 수
+    this.bestTrickSpins      = 0;    // 한 번에 완성한 최다 반바퀴(180°) 수
     this.nearMisses          = 0;
     this.maxComboMultiplier  = 1.0;
     this.dangerSeconds       = 0;    // 위험 구간 누적 체류 시간(초)
@@ -58,6 +62,7 @@ export class ScoreManager {
       [ScoreEvent.DODGE]:         0,
       [ScoreEvent.NEAR_MISS]:     0,
       [ScoreEvent.PERFECT_JUMP]:  0,
+      [ScoreEvent.TRICK]:         0,
       [ScoreEvent.COMBO_BONUS]:   0,
       [ScoreEvent.DANGER_LANE]:   0,
       [ScoreEvent.GOLDEN_FISH]:   0,
@@ -98,6 +103,18 @@ export class ScoreManager {
   onPerfectJump(y) {
     this._add(ScoreEvent.PERFECT_JUMP, this._applyMultipliers(SCORE.PERFECT_JUMP, y));
     this.perfectJumps++;
+  }
+
+  // 에어 트릭 클린 랜딩: 완성한 반바퀴(halfSpins) 수만큼 점수 + 콤보 적립
+  onTrick(y, halfSpins) {
+    const pts = this._applyMultipliers(SCORE.TRICK_PER_HALF * halfSpins, y);
+    this._add(ScoreEvent.TRICK, pts);
+    this.tricks++;
+    this.bestTrickSpins     = Math.max(this.bestTrickSpins, halfSpins);
+    this.combo++;
+    this.maxCombo           = Math.max(this.maxCombo, this.combo);
+    this.maxComboMultiplier = Math.max(this.maxComboMultiplier, this._comboMultiplier());
+    return pts;
   }
 
   onStageClear() { this._add(ScoreEvent.STAGE_CLEAR, SCORE.STAGE_CLEAR); }
@@ -145,6 +162,8 @@ export class ScoreManager {
       maxCombo:           this.maxCombo,
       maxComboMultiplier: this.maxComboMultiplier,
       perfectJumps:       this.perfectJumps,
+      tricks:             this.tricks,
+      bestTrickSpins:     this.bestTrickSpins,
       nearMisses:         this.nearMisses,
       dangerSeconds:      this.dangerSeconds,
       goldenFish:         this.goldenFish,

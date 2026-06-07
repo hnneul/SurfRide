@@ -22,8 +22,9 @@ const TUTORIAL_STEPS = [
   { until:  3400, text: '↑ ↓ 방향키로 파도를 타고 오르내려요' },
   { until:  7000, text: '← → 로 균형을 잡으세요 — 무너지면 와이프아웃!' },
   { until: 10400, text: '신호가 뜬 자리에서 장애물이 솟구쳐요. 미리 피하세요' },
-  { until: 13600, text: 'Space 로 점프 — 공중에선 균형이 잠시 안정돼요' },
-  { until: 16800, text: '장애물을 스치듯 피하면 아슬아슬 보너스!' },
+  { until: 13600, text: 'Space 로 점프 — 공중에선 드리프트가 멈춰요(균형은 그대로!)' },
+  { until: 17400, text: '점프 중 ← → 로 스핀! 똑바로 착지하면 트릭 점수 +' },
+  { until: 20800, text: '장애물을 스치듯 피하면 아슬아슬 보너스!' },
 ];
 
 const WIND_BY_STAGE = Object.freeze({
@@ -149,6 +150,8 @@ export default class GameScene extends Phaser.Scene {
     this._updateWeather();
     this._updateStageGimmicks(dt);
     this.player.update(dt, this.cursors, this.spaceKey, this.stageGimmicks);
+    if (this.player.trickLanded)       this._onTrick();
+    else if (this.player.trickBotched) this._onTrickBotch();
     this.obstacleManager.update(dt, this.stageTimer, this.player);
     const caught = this.goldenFish.update(dt, this.player);
     for (let i = 0; i < caught; i++) this.scoreManager.onGoldenFish();
@@ -270,6 +273,28 @@ export default class GameScene extends Phaser.Scene {
     this.three?.shake(110, 0.003);
     this.hud?.flash(255, 246, 170, 120);
     this.hud?.perfectJump();
+  }
+
+  // 에어 트릭 클린 랜딩 — 점수 적립 + 보상 연출(슬로우모션·플래시·토스트)
+  _onTrick() {
+    const pts = this.scoreManager.onTrick(this.player.baseY, this.player.trickHalfSpins);
+    this._slowmoMs = Math.max(this._slowmoMs, 130);
+    this.ocean?.pulse();
+    this.ocean?.splash(this.player.x, this.player.baseY + 8, 1.5);
+    this.cameras.main.flash(110, 130, 220, 255, false);
+    this.cameras.main.shake(120, 0.0035);
+    this.three?.shake(120, 0.0035);
+    this.hud?.flash(150, 220, 255, 120);
+    this.hud?.trick(this.player.trickHalfSpins, pts);
+  }
+
+  // 에어 트릭 착지 실패(어중간) — 점수 없음, 휘청 피드백만
+  _onTrickBotch() {
+    this.scoreManager.onComboBreak();   // 쌓은 콤보 배율 날림 — 점프로 회복 불가한 페널티
+    this.ocean?.pulse();
+    this.cameras.main.shake(160, 0.006);
+    this.three?.shake(160, 0.006);
+    this.hud?.flash(255, 150, 90, 120);
   }
 
   _onGoldenFish() {
