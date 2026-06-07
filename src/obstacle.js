@@ -182,6 +182,15 @@ const OBSTACLE_COLOR = {
   [ObstacleType.LIGHTNING]:   0xffe14d,
 };
 
+const OBSTACLE_TEXTURE_KEY = {
+  [ObstacleType.FLYING_FISH]: 'obstacle-flying-fish',
+  [ObstacleType.SHARK]:       'obstacle-shark',
+  [ObstacleType.WHALE]:       'obstacle-whale',
+  [ObstacleType.JELLYFISH]:   'obstacle-jellyfish',
+  [ObstacleType.OCTOPUS]:     'obstacle-octopus',
+  [ObstacleType.LIGHTNING]:   'obstacle-lightning',
+};
+
 // 분출 단계 머신: RISE(솟구침) → ACTIVE(노출) → SINK(가라앉음) → done.
 // ERUPT_X 열에서 제자리 분출(x 고정).
 class ObstacleInstance {
@@ -255,6 +264,8 @@ class ObstacleInstance {
   }
 
   _buildVisual() {
+    if (this._buildPixelSprite()) return;
+
     switch (this.type) {
       case ObstacleType.FLYING_FISH: this._buildFlyingFish(); break;
       case ObstacleType.SHARK:       this._buildShark();      break;
@@ -264,6 +275,21 @@ class ObstacleInstance {
       case ObstacleType.LIGHTNING:   this._buildLightning();  break;
       default:                       this._buildFallback();   break;
     }
+  }
+
+  _buildPixelSprite() {
+    const key = OBSTACLE_TEXTURE_KEY[this.type];
+    if (!key || !this.scene.textures.exists(key)) return false;
+
+    const img = this.scene.add.image(0, 0, key)
+      .setOrigin(0.5)
+      .setDisplaySize(this.hitboxW * 1.08, this.hitboxH * 1.22);
+
+    this.parts.sprite = img;
+    this.parts.spriteBaseScaleX = img.scaleX;
+    this.parts.spriteBaseScaleY = img.scaleY;
+    this.visual.add(img);
+    return true;
   }
 
   _buildFlyingFish() {
@@ -374,7 +400,14 @@ class ObstacleInstance {
 
   _animateVisual() {
     const t = this.ageMs / 1000;
-    if (this.type === ObstacleType.FLYING_FISH) {
+    if (this.parts.sprite) {
+      this.parts.sprite.setScale(
+        this.parts.spriteBaseScaleX * (1 + Math.sin(t * 8) * 0.025),
+        this.parts.spriteBaseScaleY * (1 + Math.cos(t * 7) * 0.025),
+      );
+      if (this.type === ObstacleType.FLYING_FISH) this.visual.y = this.y + Math.sin(t * 9) * 5;
+      if (this.type === ObstacleType.LIGHTNING) this.parts.sprite.alpha = 0.78 + Math.random() * 0.22;
+    } else if (this.type === ObstacleType.FLYING_FISH) {
       this.visual.y = this.y + Math.sin(t * 9) * 5;
       this.parts.wingTop.rotation = Math.sin(t * 13) * 0.18;
       this.parts.wingBot.rotation = -Math.sin(t * 13) * 0.12;
