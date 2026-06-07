@@ -41,7 +41,7 @@ export class GoldenFishLayer {
   }
 
   // 활성 황금물고기 ↔ 메시 동기화. 획득 시(배열에서 빠진 키의 collected) 확장 링 연출.
-  sync(fishes, t) {
+  sync(fishes, t, world = null) {
     const seen = this._seen;
     seen.clear();
     if (fishes) {
@@ -55,7 +55,10 @@ export class GoldenFishLayer {
         }
         const age = fish.ageMs ?? 0;
         const bob = Math.sin(age * 0.006 + (fish.bobSeed ?? 0)) * 0.12;     // 2D bob(±10px)에 대응
-        mesh.position.set(gameX2WorldX(fish.x), WATER_Y + 0.28 + bob, rideY2WorldZ(fish.y));
+        const wx = gameX2WorldX(fish.x);
+        const wz = rideY2WorldZ(fish.y);
+        const waveH = world ? world.sampleWaveHeight(wx, wz, t) : 0;
+        mesh.position.set(wx, WATER_Y + waveH + 0.28 + bob, wz);
         const pulse = 0.5 + 0.5 * Math.sin(age * 0.01);
         mesh.userData.glow.scale.set(1.6 * (1 + pulse * 0.16), 0.95 * (1 + pulse * 0.16), 0.85 * (1 + pulse * 0.16));
         mesh.userData.glow.material.opacity = 0.14 + pulse * 0.16;

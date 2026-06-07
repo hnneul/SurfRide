@@ -285,6 +285,8 @@ export default class ResultScene extends Phaser.Scene {
       { label: '장애물 회피',       value: b[E.DODGE] },
       { label: '아슬아슬 보너스',   value: b[E.NEAR_MISS] },
       { label: `퍼펙트 점프 ×${s.perfectJumps}`, value: b[E.PERFECT_JUMP] },
+      { label: `파도 타기 ×${s.bigWaves ?? 0}`, value: b[E.WAVE_RIDE] },
+      { label: `균형 회복 ×${s.clutches ?? 0}`, value: b[E.BALANCE_CLUTCH] },
       { label: '위험구간 보너스',   value: b[E.DANGER_LANE] },
       { label: `황금 물고기 ×${s.goldenFish ?? 0}`, value: b[E.GOLDEN_FISH] },
       { label: '기상이변 보너스 ×2', value: b[E.WEATHER_BONUS] },
@@ -352,25 +354,26 @@ export default class ResultScene extends Phaser.Scene {
       shadow: this.cleared ? undefined : { offsetX: 0, offsetY: 0, color: '#00aaff', blur: 10, fill: true },
     }).setOrigin(1, 0.5).setAlpha(0).setData('baseY', yt);
 
-    const post = (dy, txt, style) => {
-      if (!txt) return null;
-      yt += dy;
-      return this.add.text(cx, yt, txt, style).setOrigin(0.5).setAlpha(0).setData('baseY', yt);
-    };
-    const diffLabel = this._plainGameOverLine(this.final.diff.label);
-    this.diffObj  = post(this.cleared ? 0 : 42, this.cleared ? null : diffLabel, { fontSize: '22px', fontFamily: 'sans-serif', color: this.final.diff.color, fontStyle: 'bold' });
     this.statsObj = null;
     this.hintObj  = null;
-    this.badgeObj = null;
 
-    // 격려 문구는 버튼(y=928) 바로 위에 고정 — 누적 배치가 버튼을 침범하지 않도록
+    // 게임오버: 실패 원인(상단 헤더) + '좋았던 점'(배지) + '다음 목표'(격려) 세 줄로 다음 판을 당긴다.
+    // ⚠️ 행 수에 따라 누적 배치하면 5행(생존·회피가 매번 쌓여 자주 발생)일 때 격려가 패널(y≤940)을
+    //    넘어 버튼(top 946)을 침범했음 → 행 수와 무관하게 패널 하단에 '고정 y'로 둔다. 최대 총점 y=848
+    //    < diff 872라 충돌 없음. 표시는 reveal()/_settle()이 getData('baseY')로 처리(고정 y면 그대로 동작).
     if (this.cleared) {
+      this.diffObj = null;
+      this.badgeObj = null;
       this.encourageObj = null;
     } else {
-      const encourageY = 912;
-      this.encourageObj = this.add.text(cx, encourageY, this._plainGameOverLine(this.final.encourage.label), {
-        fontSize: '20px', fontFamily: 'sans-serif', color: this.final.encourage.color, fontStyle: 'bold',
-      }).setOrigin(0.5).setAlpha(0).setData('baseY', encourageY);
+      const mkLine = (y, txt, style) =>
+        this.add.text(cx, y, txt, style).setOrigin(0.5).setAlpha(0).setData('baseY', y);
+      this.diffObj = mkLine(872, this._plainGameOverLine(this.final.diff.label),
+        { fontSize: '22px', fontFamily: 'sans-serif', color: this.final.diff.color, fontStyle: 'bold' });
+      this.badgeObj = mkLine(900, '좋았던 점 · ' + this._plainGameOverLine(this.final.badge.label),
+        { fontSize: '19px', fontFamily: 'sans-serif', color: this.final.badge.color, fontStyle: 'bold' });
+      this.encourageObj = mkLine(926, this._plainGameOverLine(this.final.encourage.label),
+        { fontSize: '20px', fontFamily: 'sans-serif', color: this.final.encourage.color, fontStyle: 'bold' });
     }
   }
 
@@ -675,9 +678,12 @@ export default class ResultScene extends Phaser.Scene {
     const s = this.summary;
     const cands = [
       { ok: this._isClose,                      w: 100,                          label: '🌊 기록까지 한 파도',        color: ORANGE },
+      { ok: (s.bigWaves ?? 0) >= 2,             w: 88 + (s.bigWaves ?? 0) * 6,   label: '🌊 큰 파도를 멋지게 탔어요',  color: ORANGE },
       { ok: (s.goldenFish ?? 0) >= 1,           w: 80 + (s.goldenFish ?? 0) * 5, label: '🐟 황금 물고기 사냥 성공',   color: GOLD },
       { ok: (s.perfectJumps ?? 0) >= 3,         w: 60 + (s.perfectJumps ?? 0),   label: '🎯 점프 감각 좋았어요',      color: TEAL },
+      { ok: (s.bigWaves ?? 0) >= 1,             w: 55,                           label: '🌊 큰 파도 타기 성공',       color: TEAL },
       { ok: (s.dangerSeconds ?? 0) >= 8,        w: 50 + (s.dangerSeconds ?? 0),  label: '🔥 위험한 라인에서 버텼어요', color: ORANGE },
+      { ok: (s.clutches ?? 0) >= 2,             w: 45 + (s.clutches ?? 0) * 3,   label: '⚖️ 균형 감각이 좋았어요',     color: TEAL },
       { ok: (s.maxComboMultiplier ?? 1) >= 1.5, w: 40,                           label: '⚡ 콤보가 매서웠어요',        color: TEAL },
       { ok: (s.perfectJumps ?? 0) >= 1,         w: 30,                           label: '🎯 첫 퍼펙트 점프 성공',     color: TEAL },
       { ok: (s.nearMisses ?? 0) >= 1,           w: 20,                           label: '😮 아슬아슬하게 잘 피했어요', color: TEAL },
@@ -688,18 +694,23 @@ export default class ResultScene extends Phaser.Scene {
     return { label: '🌊 다음 파도를 노려봐요', color: SOFT };
   }
 
+  // 다음 목표(next goal) — 다음 플레이로 끌어당기는 구체적 한 줄
   _encourageLine() {
     const s = this.summary;
     const gap = this._recordGap;
-    if (this._isClose)                return { label: `🌊 다음 판엔 +${gap.toLocaleString()}점만 더!`, color: GOLD };
-    if ((s.perfectJumps ?? 0) === 0)  return { label: '🎯 퍼펙트 점프 하나면 기록권이에요', color: GOLD };
-    if (gap > 0)                      return { label: `🌊 다음 판엔 +${gap.toLocaleString()}점 도전!`, color: GOLD };
-    if (this.cleared)                 return { label: '🔥 다음 해역이 기다려요', color: GOLD };
-    return { label: '🌊 이 기세로 한 판 더!', color: GOLD };
+    if (this._isClose)               return { label: `🌊 다음 목표: +${gap.toLocaleString()}점만 더!`, color: GOLD };
+    if ((s.bigWaves ?? 0) === 0)     return { label: '🌊 다음 목표: 큰 파도를 한 번 타보기', color: GOLD };
+    if ((s.perfectJumps ?? 0) === 0) return { label: '🎯 다음 목표: 퍼펙트 점프 1회', color: GOLD };
+    if ((s.bigWaves ?? 0) < 2)       return { label: '🌊 다음 목표: 큰 파도 2번 연속 타기', color: GOLD };
+    if (gap > 0)                     return { label: `🌊 다음 목표: +${gap.toLocaleString()}점 도전!`, color: GOLD };
+    if (this.cleared)                return { label: '🔥 다음 목표: 다음 해역 정복', color: GOLD };
+    return { label: '🌊 다음 목표: 콤보 배율 ×2.0 찍기', color: GOLD };
   }
 
   _hint() {
     const s = this.summary;
+    if ((s.bigWaves ?? 0) === 0)
+      return '큰 파도가 올 때 마루(crest) 가까이서 균형을 지키면 보너스가 쏟아져요';
     if ((s.perfectJumps ?? 0) === 0)
       return 'Perfect Jump를 노려보세요 — 정확한 타이밍 점프로 +200!';
     if ((s.dangerSeconds ?? 0) === 0)

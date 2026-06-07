@@ -10,6 +10,9 @@ export const SCORE = Object.freeze({
   TRICK_PER_HALF:   140,   // 에어 트릭: 완성한 180°(반바퀴)당 점수
   DANGER_PER_SEC:    30,   // 위험 구간 체류 시 초당 보너스
   GOLDEN_FISH:      500,   // 황금 물고기 획득
+  WAVE_RIDE_PER_SEC: 70,   // 큰 파도 마루를 잘 타는 동안 초당(파도 타기 보상)
+  BIG_WAVE:         400,   // 큰 파도 성공 마무리 보너스(품질 비례)
+  BALANCE_CLUTCH:   130,   // 균형이 무너지기 직전 회복(위험-보상)
   STAGE_CLEAR:     1000,
 });
 
@@ -32,6 +35,8 @@ export const ScoreEvent = Object.freeze({
   COMBO_BONUS:    'COMBO_BONUS',
   DANGER_LANE:    'DANGER_LANE',
   GOLDEN_FISH:    'GOLDEN_FISH',
+  WAVE_RIDE:      'WAVE_RIDE',
+  BALANCE_CLUTCH: 'BALANCE_CLUTCH',
   WEATHER_BONUS:  'WEATHER_BONUS',
   STAGE_CLEAR:    'STAGE_CLEAR',
 });
@@ -57,6 +62,8 @@ export class ScoreManager {
     this.maxComboMultiplier  = 1.0;
     this.dangerSeconds       = 0;    // 위험 구간 누적 체류 시간(초)
     this.goldenFish          = 0;    // 황금 물고기 획득 수
+    this.bigWaves            = 0;    // 큰 파도 성공적으로 탄 수
+    this.clutches            = 0;    // 균형 회복(클러치) 수
     this.breakdown = {
       [ScoreEvent.SURVIVAL]:      0,
       [ScoreEvent.DODGE]:         0,
@@ -66,6 +73,8 @@ export class ScoreManager {
       [ScoreEvent.COMBO_BONUS]:   0,
       [ScoreEvent.DANGER_LANE]:   0,
       [ScoreEvent.GOLDEN_FISH]:   0,
+      [ScoreEvent.WAVE_RIDE]:     0,
+      [ScoreEvent.BALANCE_CLUTCH]:0,
       [ScoreEvent.WEATHER_BONUS]: 0,
       [ScoreEvent.STAGE_CLEAR]:   0,
     };
@@ -111,6 +120,33 @@ export class ScoreManager {
     this._add(ScoreEvent.TRICK, pts);
     this.tricks++;
     this.bestTrickSpins     = Math.max(this.bestTrickSpins, halfSpins);
+    this.combo++;
+    this.maxCombo           = Math.max(this.maxCombo, this.combo);
+    this.maxComboMultiplier = Math.max(this.maxComboMultiplier, this._comboMultiplier());
+    return pts;
+  }
+
+  // 큰 파도 마루를 타는 동안 초당 적립(연속 보상). combo 배율 적용.
+  onWaveRideTick(y) {
+    this._add(ScoreEvent.WAVE_RIDE, this._applyMultipliers(SCORE.WAVE_RIDE_PER_SEC, y));
+  }
+
+  // 큰 파도 성공 마무리 — 품질(0~1, 마루를 얼마나 잘 탔나)에 비례. 콤보 +2.
+  onBigWave(quality, y) {
+    const pts = this._applyMultipliers(Math.round(SCORE.BIG_WAVE * (0.5 + quality)), y);
+    this._add(ScoreEvent.WAVE_RIDE, pts);
+    this.bigWaves++;
+    this.combo += 2;
+    this.maxCombo           = Math.max(this.maxCombo, this.combo);
+    this.maxComboMultiplier = Math.max(this.maxComboMultiplier, this._comboMultiplier());
+    return pts;
+  }
+
+  // 균형 회복(클러치) — 무너지기 직전에서 살려냈을 때. 콤보 +1.
+  onBalanceClutch(y) {
+    const pts = this._applyMultipliers(SCORE.BALANCE_CLUTCH, y);
+    this._add(ScoreEvent.BALANCE_CLUTCH, pts);
+    this.clutches++;
     this.combo++;
     this.maxCombo           = Math.max(this.maxCombo, this.combo);
     this.maxComboMultiplier = Math.max(this.maxComboMultiplier, this._comboMultiplier());
@@ -167,6 +203,8 @@ export class ScoreManager {
       nearMisses:         this.nearMisses,
       dangerSeconds:      this.dangerSeconds,
       goldenFish:         this.goldenFish,
+      bigWaves:           this.bigWaves,
+      clutches:           this.clutches,
       breakdown:          { ...this.breakdown },
     };
   }

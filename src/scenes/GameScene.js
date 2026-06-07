@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { LOGICAL_WIDTH, LOGICAL_HEIGHT, RIDE_TOP_Y, fracToRideY, rideYToFrac } from '../constants.js';
+import { LOGICAL_WIDTH, LOGICAL_HEIGHT, RIDE_TOP_Y, fracToRideY, rideYToFrac, BALANCE } from '../constants.js';
 import { Player } from '../player.js';
 import { ObstacleManager } from '../obstacle.js';
 import { ScoreManager } from '../score.js';
@@ -50,6 +50,12 @@ const CHASE_ACTIVE_MS = 4_500;   // 한 번 밀려옴 길이(차오름 → 최�
 const HAZE_PERIOD_MS = 13_000;   // 시야 가림(물보라/수증기): 이벤트 주기
 const HAZE_ACTIVE_MS = 4_500;    // 한 번 흐려짐 길이(짙어짐 → 최고 → 걷힘)
 
+// ─── 큰 파도 이벤트 ────────────────────────────────────────────────────────────
+const BIG_WAVE_WARN_MS = 1_800;  // 예고(다가오는 큰 파도) 길이
+const BIG_WAVE_DUR_MS  = 5_200;  // 큰 파도가 지나가는 길이(world.triggerBigWave durMs와 일치)
+const BIG_WAVE_RIDE_TOL_Z = 2.6; // 마루를 '타는' 것으로 보는 z 허용 오차
+const BIG_WAVE_GOOD_MS = 1_600;  // 이 시간만큼 마루를 타면 품질 1.0(만점 보너스)
+
 export default class GameScene extends Phaser.Scene {
   constructor() { super({ key: 'GameScene' }); }
 
@@ -83,6 +89,10 @@ export default class GameScene extends Phaser.Scene {
 
     this._setupWeather();
     this._setupStageGimmicks();
+    this._setupBigWaves();
+    this._balanceWarned = false;
+    this._clutchCdMs    = 0;
+    this._waveRideAcc   = 0;
 
     this.cursors  = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
@@ -149,9 +159,11 @@ export default class GameScene extends Phaser.Scene {
 
     this._updateWeather();
     this._updateStageGimmicks(dt);
+    this._updateBigWaves(dt);   // 큰 파도(예고→통과→마루 타기 보상) — stageGimmicks.balanceDrift에 흔들림 가산
     this.player.update(dt, this.cursors, this.spaceKey, this.stageGimmicks);
     if (this.player.trickLanded)       this._onTrick();
     else if (this.player.trickBotched) this._onTrickBotch();
+    this._updateBalanceClutch(dt);   // 균형이 무너지기 직전 회복하면 보상(위험-보상)
     this.obstacleManager.update(dt, this.stageTimer, this.player);
     const caught = this.goldenFish.update(dt, this.player);
     for (let i = 0; i < caught; i++) this.scoreManager.onGoldenFish();
@@ -210,6 +222,7 @@ export default class GameScene extends Phaser.Scene {
       stageEffect:   this._stageEffectHud(),
       progress:     Math.min(this.stageTimer / this.obstacleManager._stageDuration, 1),
       danger:       this.player.inDanger,
+      bigWave:      this._bigWaveHud(),
       tutorialText: this._tutorialActive
         ? (TUTORIAL_STEPS.find((s) => this.stageTimer < s.until)?.text ?? null)
         : null,
@@ -225,6 +238,7 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.shake(dead ? 320 : 180, dead ? 0.012 : 0.008);
     this.cameras.main.flash(140, 255, 90, 90, false);
     this.three?.shake(dead ? 320 : 180, dead ? 0.012 : 0.008);
+    this.three?.surferSplash(dead ? 2.4 : 1.8, 0xff9a9a);
     this.hud?.flash(255, 90, 90, 140);
     return dead;
   }
@@ -234,8 +248,10 @@ export default class GameScene extends Phaser.Scene {
     const grounded = this.player.isGrounded;
     if (this._wasGrounded && !grounded) {
       this.ocean?.splash(this.player.x, this.player.baseY + 12, 1.0);   // 이륙
+      this.three?.surferSplash(0.9);
     } else if (!this._wasGrounded && grounded) {
       this.ocean?.splash(this.player.x, this.player.baseY + 14, 1.6);   // 착지
+      this.three?.surferSplash(1.8);                                    // 착지 물보라 강하게
     }
     this._wasGrounded = grounded;
   }
@@ -260,6 +276,7 @@ export default class GameScene extends Phaser.Scene {
     this._slowmoMs = 200;
     this.ocean?.pulse();
     this.ocean?.splash(this.player.x, this.player.baseY + 8, 1.2);
+    this.three?.surferSplash(1.3, 0xb8e6ff);
     this.cameras.main.flash(120, 180, 230, 255, false);
     this.hud?.flash(180, 230, 255, 120);
   }
@@ -271,6 +288,7 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.flash(95, 255, 236, 120, false);
     this.cameras.main.shake(110, 0.003);
     this.three?.shake(110, 0.003);
+    this.three?.surferSplash(1.7, 0xfff6aa);
     this.hud?.flash(255, 246, 170, 120);
     this.hud?.perfectJump();
   }
@@ -284,6 +302,7 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.flash(110, 130, 220, 255, false);
     this.cameras.main.shake(120, 0.0035);
     this.three?.shake(120, 0.0035);
+    this.three?.surferSplash(1.6, 0x96d6ff);
     this.hud?.flash(150, 220, 255, 120);
     this.hud?.trick(this.player.trickHalfSpins, pts);
   }
@@ -299,6 +318,7 @@ export default class GameScene extends Phaser.Scene {
 
   _onGoldenFish() {
     this.ocean?.pulse();
+    this.three?.surferSplash(1.2, 0xffe27a);
     this.cameras.main.flash(120, 255, 224, 120, false);
     this.hud?.flash(255, 224, 120, 120);
   }
@@ -326,6 +346,121 @@ export default class GameScene extends Phaser.Scene {
       this.three?.shake(260, 0.005);
       this.hud?.flash(120, 150, 220, 220);
       this.ocean?.pulse();
+    }
+  }
+
+  // ─── 큰 파도 이벤트 (예고 → 통과 → 마루 타기 보상) ──────────────────────────────
+  // 배경 장식이 아니라 게임 이벤트: 예고 후 거대 너울이 원경에서 밀려와 서퍼·장애물·수면을 함께
+  // 들어올린다. 통과하는 동안 마루(crest) 가까이서 균형을 지키며 '타면' 초당 보상 + 마무리 보너스.
+  // 실패(거의 못 탐)하면 보너스 없음 + 흔들림. 큰 파도 동안 보드가 흔들려(balanceDrift) 위험이 커진다.
+  _setupBigWaves() {
+    const dur = this.obstacleManager._stageDuration;
+    // 현재는 1스테이지 프로토타입에만 활성(스폰 패턴이 큰 파도 창을 비워 둠). 추후 테마별
+    // 파라미터(횟수·진폭·타이밍)로 확장 가능 — 다른 스테이지의 빽빽한 패턴과 겹치면 과해지므로 보류.
+    this._bigWaveTimes = this.stageIndex === 0 ? [dur * 0.34, dur * 0.7] : [];
+    this._bigWaveIdx = 0;
+    this._bigWave = { phase: 'idle', warnMs: 0, goodMs: 0, totalMs: 0, _riding: false };
+  }
+
+  _bigWaveHud() {
+    const bw = this._bigWave;
+    if (!bw) return null;
+    return {
+      warn:     bw.phase === 'warn',
+      active:   bw.phase === 'active',
+      riding:   bw.phase === 'active' && bw._riding,
+      progress: bw.phase === 'active' ? (this.three?.world?.bigWaveProgress ?? 0) : 0,
+    };
+  }
+
+  _updateBigWaves(dt) {
+    const bw = this._bigWave;
+    if (!bw || !this.three) return;
+    const t = this.stageTimer;
+
+    if (bw.phase === 'idle') {
+      if (this._bigWaveIdx < this._bigWaveTimes.length &&
+          t >= this._bigWaveTimes[this._bigWaveIdx] - BIG_WAVE_WARN_MS) {
+        bw.phase = 'warn'; bw.warnMs = 0;
+        this.three.shake(150, 0.0026);
+      }
+      return;
+    }
+
+    if (bw.phase === 'warn') {
+      bw.warnMs += dt;
+      if (bw.warnMs >= BIG_WAVE_WARN_MS) {
+        bw.phase = 'active'; bw.goodMs = 0; bw.totalMs = 0; bw._riding = false;
+        this.three.triggerBigWave({ durMs: BIG_WAVE_DUR_MS });
+        this.three.shake(240, 0.005);
+        this.hud?.flash(150, 210, 255, 200);
+      }
+      return;
+    }
+
+    // active — 마루를 타는지 판정 + 흔들림 외란 + 초당 보상, world 파도가 끝나면 정산
+    bw.totalMs += dt;
+    this.stageGimmicks.balanceDrift += Math.sin(t * 0.013 + 1.3) * 0.34;   // 보드 흔들림(위험)
+
+    const crestZ  = this.three.world?.bigWaveCrestZ;
+    const surferZ = this.three.surfer?.pos?.z;
+    const inRange = crestZ != null && crestZ >= 1.5 && crestZ <= 11.5;     // 마루가 플레이 영역에
+    const riding  = inRange && surferZ != null &&
+      Math.abs(crestZ - surferZ) <= BIG_WAVE_RIDE_TOL_Z &&
+      this.player.isGrounded && Math.abs(this.player.tilt) < BALANCE.WARN_AT;
+    bw._riding = riding;
+    if (riding) {
+      bw.goodMs += dt;
+      this._waveRideAcc += dt;
+      while (this._waveRideAcc >= 1000) {
+        this._waveRideAcc -= 1000;
+        this.scoreManager.onWaveRideTick(this.player.baseY);
+        this.three?.surferSplash(0.7, 0xd6f4ff);
+      }
+    }
+
+    if (!this.three.world?.bigWave) {   // 큰 파도 종료 → 정산
+      const quality = Math.max(0, Math.min(1, bw.goodMs / BIG_WAVE_GOOD_MS));
+      if (quality >= 0.25) this._onBigWaveSuccess(quality);
+      else                 this._onBigWaveMiss();
+      bw.phase = 'idle';
+      bw._riding = false;
+      this._bigWaveIdx++;
+    }
+  }
+
+  _onBigWaveSuccess(quality) {
+    const pts = this.scoreManager.onBigWave(quality, this.player.baseY);
+    this._slowmoMs = Math.max(this._slowmoMs, 150);
+    this.cameras.main.flash(160, 150, 220, 255, false);
+    this.cameras.main.shake(200, 0.004);
+    this.three?.shake(200, 0.004);
+    this.three?.surferSplash(2.4, 0xcdefff);
+    this.hud?.flash(150, 220, 255, 160);
+    this.hud?.toast(quality > 0.8 ? 'BIG WAVE!!' : 'BIG WAVE!', `+${pts}`);
+  }
+
+  _onBigWaveMiss() {
+    this.three?.shake(220, 0.005);
+    this.cameras.main.shake(220, 0.005);
+    this.hud?.flash(120, 150, 200, 150);
+  }
+
+  // 균형이 경고 영역까지 갔다가 안정으로 회복하면 클러치 보상(지상 한정·쿨다운으로 악용 방지).
+  _updateBalanceClutch(dt) {
+    this._clutchCdMs = Math.max(0, this._clutchCdMs - dt);
+    const tiltAbs = Math.abs(this.player.tilt);
+    if (tiltAbs >= BALANCE.WARN_AT) {
+      this._balanceWarned = true;
+    } else if (this._balanceWarned && this.player.isGrounded &&
+               tiltAbs < BALANCE.WARN_AT * 0.45 && this._clutchCdMs <= 0 && !this.player.wiped) {
+      this._balanceWarned = false;
+      this._clutchCdMs = 2_500;
+      const pts = this.scoreManager.onBalanceClutch(this.player.baseY);
+      this.three?.surferSplash(1.2, 0x9ffce0);
+      this.cameras.main.flash(90, 120, 255, 200, false);
+      this.hud?.flash(150, 255, 220, 110);
+      this.hud?.toast('균형 회복!', `+${pts}`);
     }
   }
 

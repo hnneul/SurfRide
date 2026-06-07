@@ -114,7 +114,8 @@ export class Signals {
   }
 
   // 활성 신호 ↔ 마커 동기화: x→월드 x, y(lane)→월드 z. 가짜 신호도 표시(블러핑).
-  sync(signals) {
+  // 수면 높이에 얹어(파동장) 장애물과 같은 면에서 예고가 뜨게 한다.
+  sync(signals, t = 0, world = null) {
     const seen = this._seen;
     seen.clear();
     if (signals) {
@@ -126,7 +127,10 @@ export class Signals {
           this.scene.add(m);
           this.meshes.set(sig, m);
         }
-        m.position.set(gameX2WorldX(sig.x), WATER_Y + 0.06, rideY2WorldZ(sig.y));
+        const wx = gameX2WorldX(sig.x);
+        const wz = rideY2WorldZ(sig.y);
+        const waveH = world ? world.sampleWaveHeight(wx, wz, t) : 0;
+        m.position.set(wx, WATER_Y + waveH + 0.06, wz);
         this._animate(m, sig);
         seen.add(sig);
       }

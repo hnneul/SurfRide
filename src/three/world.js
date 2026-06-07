@@ -1,31 +1,40 @@
 import * as THREE from 'three';
 import { BACKGROUND_THEMES } from '../oceanBackground.js';
+import { WATER_Y } from './bridge.js';
 import { JejuStageSet } from './jejuStage.js';
 
 const BG_COLOR = 0x87ceeb;   // 하늘색 폴백 (테마에 sky 없을 때)
 
-// 파도 3겹 레이어 (원경 → 근경). y는 스펙엔 없지만, 같은 평면(y=0)으로 겹치면
-// z-파이팅이 생겨 살짝 계단을 줘 근경이 원경 위로 오게 한다.
-// ⚠️ 근경 base를 WATER_Y(0.7=서퍼·장애물 ride 평면) 아래로 둔다 — 예전 0.8+진폭0.7은
-//    파도 마루(~1.47)가 ride 평면 앞을 휩쓸어 먼 레인 장애물을 가렸음. base를 낮춰 거친 바다(높은
-//    진폭)에서도 마루가 장애물을 '지나칠' 뿐 덮지 않게. 진폭은 _animateWaves에서 테마 swell로 스케일.
-const WAVE_LAYERS = [
-  { z: 0, y: 0.0,  seg: 20, speed: 0.8, width: 120, depth: 30, amp: 1.0, opacity: 1.0 },   // 원경(깊은 청록)
-  { z: 5, y: 0.22, seg: 16, speed: 1.1, width: 120, depth: 30, amp: 1.0, opacity: 1.0 },   // 중경
-  { z: 9, y: 0.40, seg: 12, speed: 1.5, width: 120, depth: 30, amp: 1.0, opacity: 1.0 },   // 근경
-];
+// ─── 메인 파도 시스템 (서핑 감각의 핵심) ──────────────────────────────────────
+// 단일 '큰 너울' 수면을 sampleWaveHeight(x,z,t) 하나의 파동장으로 정의하고, 그 함수로
+//  (1) 수면 메시 정점을 변위시키고  (2) 서퍼·장애물 y를 같은 높이에 얹는다.
+// → 서퍼가 '렌더된 바로 그 파도' 위에 정확히 올라타고, 마루 기울기로 보드가 기운다.
+// 너울은 +z(카메라/서퍼 쪽)로 굴러와 '밀려오는 큰 파도' 전진감을 준다. 잔물결(chop)은 x축으로 교차.
+// 테마별 파라미터로 잔잔(jeju)↔괴물파도(storm/final)를 swell로 스케일한다.
+const WAVE_DEFAULTS = {
+  swellAmp:   0.52,   // 메인 너울 높이(world u) — 마루 crest ≈ WATER_Y(0.7)+amp
+  swellLen:   8.0,    // 너울 파장(z축, 진행 방향)
+  swellSpeed: 1.05,   // 너울 진행 속도
+  swellSkew:  0.05,   // x에 따른 위상차(파면이 비스듬히 굴러오게)
+  chopAmp:    0.13,   // 잔물결 높이(x축 교차)
+  chopLen:    5.0,
+  chopSpeed:  1.7,
+  swell2Amp:  0.2,    // 2차 저주파 너울(불규칙한 바다)
+  swell2Len:  17.0,
+  swell2Speed: 0.6,
+  foamColor:  0xffffff,
+  foamCrests: 3,      // 동시에 보이는 흰 포말 마루 줄 수
+};
 
-// jeju 민트 3D 바다 — opacity를 ~0.45–0.52(반투명)로 낮춰 '반투명 베일'로 쓴다. 더는 사진 바다를
-// 불투명하게 덮지 않고(opacity<1 → 전부 transparent·depthWrite:false), 그 위에서 시안 너울이
-// 움직이되 사진 배경이 비쳐 보이게 한다. far가 베이스라 살짝 진하고 near로 갈수록 옅어진다.
-const JEJU_WAVE_LAYERS = [
-  // far: 반투명 베이스 베일. 수면 바로 아래(y -0.12)에서 마루 crest ~0.34.
-  { z: 12.0, y: -0.12, seg: 24, speed: 0.62, width: 150, depth: 32, amp: 0.38, opacity: 1.0 },
-  // mid: 중간 너울 — 사진 위로 시안 톤을 살짝만.
-  { z:  5.5, y:  0.12, seg: 18, speed: 0.84, width: 132, depth: 14, amp: 0.52, opacity: 1.0 },
-  // near: 가장 옅게 → 마루 crest 0.58 < WATER_Y 0.7 → 장애물(FLYING_FISH) 위를 지나가되 거의 안 가림.
-  { z:  9.0, y:  0.30, seg: 14, speed: 1.02, width: 132, depth: 20, amp: 0.52, opacity: 1.0 },
-];
+// 테마별 오버라이드(없으면 swell로 진폭/속도 자동 스케일). jeju=승인된 선명 시안 바다.
+const WAVE_THEME = {
+  jeju: { swellAmp: 0.62, swellLen: 7.2, swellSpeed: 1.0, chopAmp: 0.17, chopLen: 4.2,
+          swell2Amp: 0.24, swell2Len: 15, foamColor: 0xeafdff, foamCrests: 4 },
+};
+
+// 메인 수면 평면 — 카메라가 보는 영역을 넉넉히 덮는다(서퍼 x≈-6.4 중심). 저폴리 facet이
+// 또렷하게 음영지도록 너무 잘게 쪼개지 않는다(파장당 ~4.5 세그먼트).
+const OCEAN_PLANE = { width: 110, depth: 66, segX: 56, segZ: 42, cx: -6, cz: 6 };
 
 // 3D 물색 오버라이드(테마별, 원경→근경). 없으면 theme.sea[0]에서 밝기 램프로 파생.
 // jeju(1스테이지): 사용자가 승인한 '선명한 시안'을 유지(테마 청록 대신).
@@ -51,15 +60,34 @@ export class World {
     this.swell = this.theme.swell ?? 1;   // 잔잔(1.0) ~ 괴물 파도(1.75)
     this.backdropUrl = STAGE_BACKDROP[themeKey] ?? null;   // 이미지 백드롭 테마면 절차적 배경 생략
     this.stageSet = null;
+    this.waveParams = this._resolveWaveParams();
+    this._t = 0;                          // 마지막 update 시간(샘플러 기본값)
+    this.bigWave = null;                  // 큰 파도 이벤트 상태(없으면 null)
+
     this._applyAtmosphere();
     this._buildLighting();
     if (this.backdropUrl) {
       this._buildImageBackdrop();   // 픽셀아트 전체 배경 — 3D 바다·하늘·섬·구름 미생성
     } else {
-      this._buildOcean();
+      this._buildMainOcean();
       this._buildBackground();
       if (this.themeKey === 'jeju') this.stageSet = new JejuStageSet(this.scene);
     }
+  }
+
+  // 테마 파라미터 = 기본값 + 테마 오버라이드, 그 위에 swell(잔잔↔괴물)로 진폭/속도 스케일.
+  _resolveWaveParams() {
+    const p = { ...WAVE_DEFAULTS, ...(WAVE_THEME[this.themeKey] ?? {}) };
+    const sw = this.swell;
+    const ampK = 1 + (sw - 1) * 0.7;      // 거친 바다일수록 마루가 높게
+    const spdK = 1 + (sw - 1) * 0.35;     // 그리고 더 빠르게 굴러옴
+    p.swellAmp  *= ampK;
+    p.swell2Amp *= ampK;
+    p.chopAmp   *= ampK;
+    p.swellSpeed  *= spdK;
+    p.swell2Speed *= spdK;
+    p.chopSpeed   *= spdK;
+    return p;
   }
 
   // 배경·포그 = 테마 하늘 중간톤(거리 헤이즈). 밤/폭풍은 자동으로 어두워짐.
@@ -105,26 +133,84 @@ export class World {
     return { ambColor: 0xffffff, ambI: 2.8, dirColor: 0xffffff, dirI: 0.7 };   // 주간
   }
 
-  // 파도 3겹 — 수평으로 눕힌 평면, update()에서 정점 높이를 변위시켜 잔물결.
-  _buildOcean() {
-    this.waves = [];
-    const colors = this._waterColors();   // [원경, 중경, 근경]
-    const layers = this.themeKey === 'jeju' ? JEJU_WAVE_LAYERS : WAVE_LAYERS;
-    layers.forEach((def, i) => {
-      const geo = new THREE.PlaneGeometry(def.width, def.depth, def.seg, def.seg);
-      geo.rotateX(-Math.PI / 2);   // 수평 바다 표면으로 눕힘
-      const mat = new THREE.MeshLambertMaterial({
-        color: colors[Math.min(colors.length - 1, i)],
-        flatShading: true,
-        transparent: def.opacity < 1,
-        opacity: def.opacity,
-        depthWrite: def.opacity >= 1,
+  // ── 파동장 샘플러 ── 메인 수면 메시·서퍼·장애물이 공유하는 단일 진실. 같은 함수로
+  // 정점을 변위시키고 액터 y를 얹어, 액터가 '렌더된 바로 그 파도' 위에 정확히 올라탄다.
+  // 너울은 +z(카메라 쪽)로 진행 → 밀려오는 큰 파도. (t는 초 단위 누적시간)
+  sampleWaveHeight(x, z, t = this._t) {
+    const p = this.waveParams;
+    const k  = (Math.PI * 2) / p.swellLen;
+    let h = p.swellAmp * Math.sin(z * k - t * p.swellSpeed + x * p.swellSkew);
+    const k2 = (Math.PI * 2) / p.swell2Len;
+    h += p.swell2Amp * Math.sin(z * k2 - t * p.swell2Speed - x * 0.03);
+    const kc = (Math.PI * 2) / p.chopLen;
+    h += p.chopAmp * Math.sin(x * kc + t * p.chopSpeed + z * 0.4);
+    if (this.bigWave) h += this._bigWaveHeight(x, z);
+    return h;
+  }
+
+  // 마루 기울기(보드·몸 기울임용). 유한차분으로 dH/dx(좌우 뱅크), dH/dz(앞뒤 피치).
+  sampleWaveSlope(x, z, t = this._t) {
+    const e = 0.6;
+    return {
+      dHdx: (this.sampleWaveHeight(x + e, z, t) - this.sampleWaveHeight(x - e, z, t)) / (2 * e),
+      dHdz: (this.sampleWaveHeight(x, z + e, t) - this.sampleWaveHeight(x, z - e, t)) / (2 * e),
+    };
+  }
+
+  // 메인 수면 — 넓고 깊은 평면 하나를 매 프레임 파동장으로 변위. 정점색은 원경(짙음)→근경(밝음)
+  // 그라데이션. jeju는 살짝 반투명(opacity<1)으로 사진 수평선이 먼 가장자리에서 비쳐 어우러진다.
+  _buildMainOcean() {
+    const def = OCEAN_PLANE;
+    const geo = new THREE.PlaneGeometry(def.width, def.depth, def.segX, def.segZ);
+    geo.rotateX(-Math.PI / 2);   // xz 평면(수평 바다)으로 눕힘 — local y→world -z
+
+    const [cFar, cMid, cNear] = this._waterColors();
+    const pos = geo.attributes.position;
+    const cols = [];
+    const half = def.depth / 2;
+    for (let i = 0; i < pos.count; i++) {
+      const f = (pos.getZ(i) + half) / def.depth;        // 0(원경)~1(근경)
+      const c = f < 0.5 ? cFar.clone().lerp(cMid, f * 2) : cMid.clone().lerp(cNear, (f - 0.5) * 2);
+      cols.push(c.r, c.g, c.b);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+
+    // 불투명 — 깊이를 써서 서퍼/장애물이 마루 뒤로 깔끔히 가려지고(서핑감) 마루 위에선 또렷이 보인다.
+    // (반투명이면 가까운 물이 서퍼 위로 비쳐 '물에 잠긴 유령'처럼 보였다.) 사진 백드롭은 수면 위로 비침.
+    const mat = new THREE.MeshLambertMaterial({
+      vertexColors: true, flatShading: true,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(def.cx, WATER_Y, def.cz);
+    mesh.renderOrder = 0;
+    this.scene.add(mesh);
+    // 정점의 월드 (x,z)를 미리 캐시(매 프레임 재계산 회피)
+    const wx = new Float32Array(pos.count);
+    const wz = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) { wx[i] = def.cx + pos.getX(i); wz[i] = def.cz + pos.getZ(i); }
+    this.ocean = { mesh, geo, pos, wx, wz };
+
+    this._buildFoamCrests();
+  }
+
+  // 흰 포말 마루 — vertex-color 화이트캡은 이 매끈한 저폴리 물에선 블룸이 돼 실패했으므로(메모),
+  // 전용 메시로 처리: 너울 마루를 가로지르는 밝은 띠 N개. 매 프레임 마루 z를 풀어 그 위에 얹는다.
+  _buildFoamCrests() {
+    this.foamCrests = [];
+    const n = this.waveParams.foamCrests;
+    for (let i = 0; i < n; i++) {
+      const geo = new THREE.PlaneGeometry(OCEAN_PLANE.width * 0.92, 1.05, 24, 1);
+      geo.rotateX(-Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({
+        color: this.waveParams.foamColor, transparent: true, opacity: 0,
+        depthWrite: false, fog: false,
       });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(0, def.y, def.z);
+      mesh.position.x = OCEAN_PLANE.cx;
+      mesh.renderOrder = 1;   // 물 위, 액터 아래
       this.scene.add(mesh);
-      this.waves.push({ mesh, speed: def.speed, amp: def.amp });
-    });
+      this.foamCrests.push(mesh);
+    }
   }
 
   // 파도 3겹 색(원경→근경). SEA3D_OVERRIDE 있으면 레이어별 색 직접 사용(jeju=승인 시안).
@@ -239,8 +325,10 @@ export class World {
     }
   }
 
-  update(t) {
-    if (this.waves) this._animateWaves(t);    // 이미지 백드롭 테마는 파도·구름 메시가 없음
+  update(t, dtMs = 16.667) {
+    this._t = t;
+    this._updateBigWave(dtMs);
+    if (this.ocean) this._animateMainOcean(t);   // 이미지 백드롭 테마는 바다 메시가 없음
     if (this.clouds) this._moveClouds();
     this.stageSet?.update(t);
   }
@@ -251,28 +339,74 @@ export class World {
     this.stageSet?.dispose();
   }
 
-  // 파도 — sin/cos 합성으로 정점 높이(y) 변위. flatShading이라 노멀 재계산 불필요. 진폭/촐싹임은
-  // 테마 swell로 스케일(잔잔↔괴물파도). z-위상의 시간항을 음수로 둬 마루가 카메라(+z) 쪽으로 굴러와
-  // '전진감'을 준다. 근경 base(0.40)가 ride 평면(0.7)보다 낮아 마루가 장애물 위를 '지나갈' 뿐 영구히
-  // 덮지 않음(가독성 — swell↑ 시 이 여유가 줄어드니 과하게 올리지 말 것).
-  // 참고: 흰 포말/물마루는 vertex-color로 시도했으나 이 매끈한 저폴리 물에선 블룸/스미어가 돼 보류.
-  //       제대로 하려면 전용 셰이더/포말 텍스처 필요(별도 작업).
-  _animateWaves(t) {
-    const sw = this.swell;
-    const a1 = 0.30 * sw, a2 = 0.15 * sw;          // 진폭 (잔잔 0.45 ~ 괴물파도 ~0.79)
-    for (const { mesh, speed, amp = 1 } of this.waves) {
-      const sp  = speed * (1 + (sw - 1) * 0.35);   // 거친 바다일수록 더 빠르게 촐싹임
-      const pos = mesh.geometry.attributes.position;
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i);
-        const z = pos.getZ(i);
-        pos.setY(i,
-          (Math.sin(x * 0.18 + t * sp) * a1 +
-          Math.cos(z * 0.25 - t * sp * 0.7) * a2) * amp,   // ⬅ -t: 마루가 카메라 쪽으로 굴러옴(전진감)
-        );
-      }
-      pos.needsUpdate = true;
+  // 메인 수면 변위 — 캐시한 정점 월드 (x,z)를 sampleWaveHeight에 넣어 마루를 만든다.
+  // mesh.position.y=WATER_Y이므로 정점 y엔 파고만 싣는다(액터도 WATER_Y+파고에 얹혀 정확히 일치).
+  _animateMainOcean(t) {
+    const { pos, wx, wz } = this.ocean;
+    for (let i = 0; i < pos.count; i++) pos.setY(i, this.sampleWaveHeight(wx[i], wz[i], t));
+    pos.needsUpdate = true;
+    this._animateFoamCrests(t);
+  }
+
+  // 포말 띠를 너울 마루 위로. 마루 위상 z*k - t*speed = π/2 + 2πn 을 풀어 마루 z를 구한다.
+  _animateFoamCrests(t) {
+    if (!this.foamCrests) return;
+    const p = this.waveParams;
+    const k = (Math.PI * 2) / p.swellLen;
+    const cx = OCEAN_PLANE.cx;
+    // 서퍼 열(cx) 기준 마루 위상. z = (π/2 + 2πn + t*speed - cx*skew) / k
+    const base = (Math.PI / 2 + t * p.swellSpeed - cx * p.swellSkew) / k;
+    const span = OCEAN_PLANE.depth;
+    const zNearEdge = OCEAN_PLANE.cz + span / 2;
+    for (let i = 0; i < this.foamCrests.length; i++) {
+      const m = this.foamCrests[i];
+      // 가장 가까운 마루부터 i파장씩 뒤(원경)로
+      let z = base - i * p.swellLen;
+      // 마루를 보이는 범위 안으로 래핑(근경 가장자리를 넘으면 한 주기 원경으로)
+      const period = p.swellLen;
+      const lo = OCEAN_PLANE.cz - span / 2;
+      while (z > zNearEdge) z -= period;
+      while (z < lo) z += period;
+      const crestH = this.sampleWaveHeight(cx, z, t);
+      m.position.set(cx, WATER_Y + crestH + 0.05, z);
+      // 근경(큰 z)일수록 또렷, 원경일수록 옅게 + 마루가 높을수록 진한 포말
+      const near = (z - lo) / span;                       // 0~1
+      const sharp = Math.min(1, Math.max(0, crestH / (p.swellAmp * 0.8)));
+      m.material.opacity = (0.18 + 0.62 * sharp) * (0.4 + 0.6 * near);
     }
+  }
+
+  // ─── 큰 파도 이벤트 ────────────────────────────────────────────────────────────
+  // 평소 너울 위에 '진행하는 거대 마루'를 더한다. 원경(작은 z)에서 근경(큰 z=서퍼)으로 밀려온다.
+  // GameScene이 trigger로 켜고, sampleWaveHeight에 가산돼 서퍼·장애물·수면이 함께 솟는다.
+  triggerBigWave(opts = {}) {
+    this.bigWave = {
+      amp:   opts.amp   ?? (1.5 + (this.swell - 1) * 0.7),
+      width: opts.width ?? 3.0,
+      durMs: opts.durMs ?? 5200,
+      fromZ: -8, toZ: 13,
+      ageMs: 0, frontZ: -8, env: 0,
+    };
+    this.bigWaveProgress = 0;
+    this.bigWaveCrestZ = -8;
+  }
+
+  _updateBigWave(dtMs) {
+    const bw = this.bigWave;
+    if (!bw) { this.bigWaveProgress = 0; this.bigWaveCrestZ = null; return; }
+    bw.ageMs += dtMs;
+    const k = Math.min(1, bw.ageMs / bw.durMs);
+    bw.frontZ = bw.fromZ + (bw.toZ - bw.fromZ) * k;
+    bw.env = Math.sin(k * Math.PI);                  // 0→1→0 부드러운 차오름·빠짐
+    this.bigWaveProgress = k;
+    this.bigWaveCrestZ = bw.frontZ;
+    if (k >= 1) this.bigWave = null;
+  }
+
+  _bigWaveHeight(x, z) {
+    const bw = this.bigWave;
+    const d = z - bw.frontZ;
+    return bw.amp * bw.env * Math.exp(-(d * d) / (bw.width * bw.width));
   }
 
   _moveClouds() {

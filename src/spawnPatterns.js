@@ -24,28 +24,32 @@ const FLYING_FISH_BURST_TELEGRAPH_MS = 900;
 /** @type {Record<string, SpawnEvent[]>} */
 const PATTERN_DATA = {
 
-  // ── Stage 1: 날치만 — 20이벤트 / 20분, telegraphMs 1200→900 ─────────────
+  // ── Stage 1: 날치만 (튜토리얼) — 학습 가능한 작은 패턴 단위 + 큰 파도 2회 ──────────
+  // 큰 파도(GameScene): 예고 ~13.5s·29.7s → 통과 15.3~20.5s·31.5~36.7s. 그 창은 비워 파도 타기에 집중.
+  // 리듬: 도입 한 마리씩 → 3연속 내림 사다리 → 같은 레인 더블(연속 점프) → (큰 파도 직후) 빠른 버스트 피날레.
+  // duration 45s — 마지막 이벤트는 분출+회피 정산(t + telegraph + RISE220+ACTIVE380)이 45s 안에 끝나야
+  // 회피 점수가 보장된다. 마지막 t=43000(+860+600=44.46s에 SINK 진입 → 정산)으로 클리어 전에 마무리.
   STAGE_1: [
+    // 도입 — 한 마리씩, 세 레인을 차례로 익힌다
     { t:  5_000, lane: M, obstacleType: FF, telegraphMs: 1200 },
-    { t:  7_800, lane: T, obstacleType: FF, telegraphMs: 1200 },
-    { t: 10_600, lane: B, obstacleType: FF, telegraphMs: 1200 },
-    { t: 13_400, lane: M, obstacleType: FF, telegraphMs: 1100 },
-    { t: 16_200, lane: T, obstacleType: FF, telegraphMs: 1100 },
-    { t: 19_000, lane: B, obstacleType: FF, telegraphMs: 1100 },
-    { t: 21_800, lane: M, obstacleType: FF, telegraphMs: 1000 },
-    { t: 24_600, lane: B, obstacleType: FF, telegraphMs: 1000 },
-    { t: 27_400, lane: T, obstacleType: FF, telegraphMs: 1000 },
-    { t: 30_200, lane: M, obstacleType: FF, telegraphMs: 1000 },
-    { t: 33_000, lane: B, obstacleType: FF, telegraphMs:  950 },
-    { t: 35_800, lane: T, obstacleType: FF, telegraphMs:  950 },
-    { t: 38_600, lane: M, obstacleType: FF, telegraphMs:  950 },
-    { t: 41_400, lane: B, obstacleType: FF, telegraphMs:  900 },
-    { t: 44_200, lane: T, obstacleType: FF, telegraphMs:  900 },
-    { t: 47_000, lane: M, obstacleType: FF, telegraphMs:  900 },
-    { t: 49_800, lane: B, obstacleType: FF, telegraphMs:  900 },
-    { t: 52_600, lane: T, obstacleType: FF, telegraphMs:  900 },
-    { t: 55_400, lane: M, obstacleType: FF, telegraphMs:  900 },
-    { t: 58_200, lane: B, obstacleType: FF, telegraphMs:  900 },
+    { t:  8_000, lane: T, obstacleType: FF, telegraphMs: 1150 },
+    { t: 10_800, lane: B, obstacleType: FF, telegraphMs: 1100 },
+    // (큰 파도 1: 13.5s 예고 → 15.3~20.5s 통과 — 이 구간 비움)
+    // 복귀 후 '3연속 내림 사다리' — 리듬 학습
+    { t: 21_500, lane: T, obstacleType: FF, telegraphMs: 1000 },
+    { t: 22_600, lane: M, obstacleType: FF, telegraphMs: 1000 },
+    { t: 23_700, lane: B, obstacleType: FF, telegraphMs: 1000 },
+    // '같은 레인 더블' — 연속 점프
+    { t: 26_200, lane: M, obstacleType: FF, telegraphMs:  950 },
+    { t: 27_300, lane: M, obstacleType: FF, telegraphMs:  950 },
+    // (큰 파도 2: 29.7s 예고 → 31.5~36.7s 통과 — 이 구간 비움)
+    // 큰 파도 직후 — 빠른 버스트 피날레(telegraph ≤900 → burst 변종)
+    { t: 37_500, lane: B, obstacleType: FF, telegraphMs:  900 },
+    { t: 38_600, lane: T, obstacleType: FF, telegraphMs:  880 },
+    { t: 39_700, lane: M, obstacleType: FF, telegraphMs:  880 },
+    { t: 41_200, lane: B, obstacleType: FF, telegraphMs:  860 },
+    { t: 42_100, lane: T, obstacleType: FF, telegraphMs:  860 },
+    { t: 43_000, lane: M, obstacleType: FF, telegraphMs:  860 },
   ],
 
   // ── Stage 2: 날치 + 해파리 + 상어 — 22이벤트 / ~20분, telegraphMs 1100→900 ─

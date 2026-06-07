@@ -11,6 +11,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
     <div class="hud__visibility"></div>
     <div class="hud__wind"></div>
     <div class="hud__danger"></div>
+    <div class="hud__bigwave-edge"></div>
     <div class="hud__top">
       <div class="hud__hearts"></div>
       <div class="hud__center">
@@ -39,6 +40,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
       <span>+200</span>
     </div>
     <div class="hud__danger-label" hidden>⚠ 위험 구간 ×1.5</div>
+    <div class="hud__bigwave" hidden></div>
     <div class="hud__tutorial" hidden></div>
     <div class="hud__balance">
       <span class="hud__balance-label">BALANCE</span>
@@ -56,6 +58,8 @@ export function mountHud(parent = document.getElementById('game-container')) {
     danger:       root.querySelector('.hud__danger'),
     wind:         root.querySelector('.hud__wind'),
     dangerLabel:  root.querySelector('.hud__danger-label'),
+    bigwave:      root.querySelector('.hud__bigwave'),
+    bigwaveEdge:  root.querySelector('.hud__bigwave-edge'),
     hearts:       root.querySelector('.hud__hearts'),
     timer:        root.querySelector('.hud__timer'),
     stage:        root.querySelector('.hud__stage'),
@@ -122,6 +126,22 @@ export function mountHud(parent = document.getElementById('game-container')) {
     el.weather.hidden = !s.weatherActive;
     el.danger.classList.toggle('is-active', !!s.danger);
     el.dangerLabel.hidden = !s.danger;
+
+    // 큰 파도 — 예고 배너 + 파란 가장자리 글로우, 통과 중엔 마루 타기 안내(타는 중=초록)
+    const bw = s.bigWave;
+    if (bw && (bw.warn || bw.active)) {
+      el.bigwave.hidden = false;
+      el.bigwave.classList.toggle('is-warn', !!bw.warn);
+      el.bigwave.classList.toggle('is-riding', !!bw.riding);
+      el.bigwave.textContent = bw.warn
+        ? '🌊 큰 파도가 온다!'
+        : (bw.riding ? '🏄 마루 타는 중!' : '🌊 마루를 따라가!');
+      el.bigwaveEdge.classList.add('is-active');
+      el.bigwaveEdge.classList.toggle('is-riding', !!bw.riding);
+    } else {
+      el.bigwave.hidden = true;
+      el.bigwaveEdge.classList.remove('is-active', 'is-riding');
+    }
 
     const effect = s.stageEffect ?? {};
     root.classList.toggle('is-night', !!effect.night);
@@ -197,6 +217,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
     flash,
     perfectJump,
     trick,
+    toast: showToast,   // 큰 파도·균형 회복 등 일반 보상 토스트
     destroy() {
       if (perfectToastTimer) clearTimeout(perfectToastTimer);
       root.remove();

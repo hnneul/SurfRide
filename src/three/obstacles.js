@@ -165,8 +165,9 @@ export class Obstacles {
     return g;
   }
 
-  // 활성 장애물 ↔ 메시 동기화: x→월드 x, targetY→월드 z, reveal→솟아오름(scale.y)
-  sync(obstacles) {
+  // 활성 장애물 ↔ 메시 동기화: x→월드 x, targetY→월드 z, reveal→솟아오름(scale.y).
+  // y는 파동장(world.sampleWaveHeight)에 얹어 수면에서 튀어오르고 잠기게 한다(충돌은 2D AABB 유지).
+  sync(obstacles, t = 0, world = null) {
     const seen = this._seen;
     seen.clear();
     if (obstacles) {
@@ -182,19 +183,20 @@ export class Obstacles {
         const vs = obs.visualScale ?? 1;   // 비주얼↔충돌 크기 매핑(OBSTACLE_META)
         const wx = gameX2WorldX(obs.x);
         const wz = rideY2WorldZ(obs.targetY);
+        const waveH = world ? world.sampleWaveHeight(wx, wz, t) : 0;   // 수면 높이에 얹기
         if (mesh.userData.isPixelSprite) {
           // 빌보드 스프라이트는 scale.y로 누르면 납작해져 '물에 깔린' 것처럼 보인다.
           // 크기는 그대로(uniform vs) 두고 수면 아래→위로 솟구쳐 튀어오르게 한다
           // (번개 등 fromAbove는 위→아래). 솟는 동안 알파로 페이드해 허공 팝인을 가린다.
           const dir  = obs.fromAbove ? 1 : -1;
           const rise = (1 - reveal) * mesh.userData.spriteH * dir;
-          mesh.position.set(wx, WATER_Y + rise, wz);
+          mesh.position.set(wx, WATER_Y + waveH + rise, wz);
           mesh.scale.set(vs, vs, vs);
           mesh.userData.spriteMat.opacity = Math.min(1, reveal * 2);
           mesh.visible = reveal > 0.02;
         } else {
           // 저폴리 메시는 바닥(=수면)에서 scale.y로 자라며 솟는다(기존 분출).
-          mesh.position.set(wx, WATER_Y, wz);
+          mesh.position.set(wx, WATER_Y + waveH, wz);
           mesh.scale.set(vs, vs * Math.max(0.08, reveal), vs);   // reveal은 y에만(분출), vs는 전체 크기
           mesh.visible = reveal > 0.02;
         }
