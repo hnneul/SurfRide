@@ -43,7 +43,7 @@ export const STAGES = [
     id:          1,
     name:        '제주 앞바다',
     theme:       'jeju',
-    duration:    60_000,
+    duration:    45_000,
     scrollSpeed: 500,
     difficulty: {
       telegraphMs:     1200,
@@ -60,7 +60,7 @@ export const STAGES = [
     id:          2,
     name:        '규슈 남쪽 물길',
     theme:       'jeju_coast',
-    duration:    65_000,
+    duration:    49_000,
     scrollSpeed: 540,
     difficulty: {
       telegraphMs:     1100,
@@ -76,7 +76,7 @@ export const STAGES = [
     id:          3,
     name:        '류큐 열도 산호길',
     theme:       'south_jeju',
-    duration:    65_000,
+    duration:    53_000,
     scrollSpeed: 580,
     difficulty: {
       telegraphMs:     1100,
@@ -93,7 +93,7 @@ export const STAGES = [
     id:          4,
     name:        '오키나와 암초',
     theme:       'east_china_sea',
-    duration:    70_000,
+    duration:    57_000,
     scrollSpeed: 620,
     difficulty: {
       telegraphMs:     1000,
@@ -109,7 +109,7 @@ export const STAGES = [
     id:          5,
     name:        '필리핀해 입구',
     theme:       'okinawa',
-    duration:    70_000,
+    duration:    61_000,
     scrollSpeed: 650,
     difficulty: {
       telegraphMs:     950,
@@ -126,7 +126,7 @@ export const STAGES = [
     id:          6,
     name:        '필리핀해 심해',
     theme:       'philippines',
-    duration:    72_000,
+    duration:    65_000,
     scrollSpeed: 700,
     difficulty: {
       telegraphMs:     950,
@@ -143,7 +143,7 @@ export const STAGES = [
     id:          7,
     name:        '마리아나 해구',
     theme:       'pacific_night',
-    duration:    75_000,
+    duration:    69_000,
     scrollSpeed: 730,
     difficulty: {
       telegraphMs:     850,
@@ -160,7 +160,7 @@ export const STAGES = [
     id:          8,
     name:        '태평양 화산섬',
     theme:       'volcanic',
-    duration:    75_000,
+    duration:    73_000,
     scrollSpeed: 760,
     difficulty: {
       telegraphMs:     800,
@@ -177,7 +177,7 @@ export const STAGES = [
     id:          9,
     name:        '폭풍 해역',
     theme:       'storm',
-    duration:    78_000,
+    duration:    77_000,
     scrollSpeed: 800,
     difficulty: {
       telegraphMs:     800,
