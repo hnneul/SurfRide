@@ -12,11 +12,13 @@ export const BACKGROUND_THEMES = Object.freeze({
     sky:    [0x89d9ff, 0x46a9d6, 0x1e78b8],
     sea:    [0x2bb6c9, 0x0d7aa6, 0x063f63],
     clouds: 0.85,
-    island: { color: 0x2f735e, alpha: 0.34, y: 0.37 },
+    // Stage 1은 '돌 없이 탁 트인 파도 바다' — 섬(지형) 생략. 되살리려면 아래 한 줄 주석 해제:
+    // island: { color: 0x2f735e, alpha: 0.34, y: 0.37 },
     coast:  true,
     waveTint: 0xa0e9ff,
     sun:     0.85,
     sparkle: 0.55,
+    swell:   1.2,   // 출렁임 강화(잔잔 1.0 기준). 너무 높이면 마루가 큰 돔이 되고 장애물을 가려 가독성 ↓
   },
   jeju_coast: {
     sky:    [0xb6f0ff, 0x58c7dc, 0x1596b5],

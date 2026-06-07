@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BACKGROUND_THEMES } from '../oceanBackground.js';
+import { JejuStageSet } from './jejuStage.js';
 
 const BG_COLOR = 0x87ceeb;   // 하늘색 폴백 (테마에 sky 없을 때)
 
@@ -9,15 +10,29 @@ const BG_COLOR = 0x87ceeb;   // 하늘색 폴백 (테마에 sky 없을 때)
 //    파도 마루(~1.47)가 ride 평면 앞을 휩쓸어 먼 레인 장애물을 가렸음. base를 낮춰 거친 바다(높은
 //    진폭)에서도 마루가 장애물을 '지나칠' 뿐 덮지 않게. 진폭은 _animateWaves에서 테마 swell로 스케일.
 const WAVE_LAYERS = [
-  { z: 0, y: 0.0,  seg: 20, speed: 0.8 },   // 원경(깊은 청록)
-  { z: 5, y: 0.22, seg: 16, speed: 1.1 },   // 중경
-  { z: 9, y: 0.40, seg: 12, speed: 1.5 },   // 근경(밝은 시안) — ride 평면(0.7) 아래
+  { z: 0, y: 0.0,  seg: 20, speed: 0.8, width: 120, depth: 30, amp: 1.0, opacity: 1.0 },   // 원경(깊은 청록)
+  { z: 5, y: 0.22, seg: 16, speed: 1.1, width: 120, depth: 30, amp: 1.0, opacity: 1.0 },   // 중경
+  { z: 9, y: 0.40, seg: 12, speed: 1.5, width: 120, depth: 30, amp: 1.0, opacity: 1.0 },   // 근경
+];
+
+const JEJU_WAVE_LAYERS = [
+  { z: 1.2, y: -1.15, seg: 20, speed: 0.58, width: 120, depth: 18, amp: 0.52, opacity: 0.82 },
+  { z: 5.1, y: -0.98, seg: 16, speed: 0.78, width: 120, depth: 16, amp: 0.48, opacity: 0.78 },
+  { z: 8.1, y: -0.82, seg: 12, speed: 0.95, width: 120, depth: 13, amp: 0.42, opacity: 0.70 },
 ];
 
 // 3D 물색 오버라이드(테마별, 원경→근경). 없으면 theme.sea[0]에서 밝기 램프로 파생.
 // jeju(1스테이지): 사용자가 승인한 '선명한 시안'을 유지(테마 청록 대신).
 const SEA3D_OVERRIDE = {
-  jeju: [0x00b4d8, 0x20c8e4, 0x32e4ec],
+  jeju: [0x007fa7, 0x08b6c6, 0x31ded7],
+};
+
+// 스테이지 배경 이미지(픽셀아트) 토글. 테마에 경로를 넣으면 절차적 3D 바다·하늘·섬·구름을 전부
+// 생략하고 그 이미지를 화면 전체 백드롭(scene.background)으로 깐다(서퍼·장애물 등 액터는 위에).
+// 단점: 정적이라 파도·구름이 안 움직임 → 기본은 비활성(절차적 움직이는 바다 사용).
+// 다시 정적 픽셀아트로 쓰려면 아래 한 줄 주석 해제. public/ 루트 절대경로(Vite base '/').
+const STAGE_BACKDROP = {
+  // jeju: '/stage-1-jeju-pixel.png',
 };
 
 // 월드 = 바다(파도 3겹) + 배경(하늘·태양/노을·별·섬·구름) + 조명 + 대기(배경/포그).
@@ -28,17 +43,40 @@ export class World {
     this.themeKey = themeKey;
     this.theme = BACKGROUND_THEMES[themeKey] ?? BACKGROUND_THEMES.jeju;
     this.swell = this.theme.swell ?? 1;   // 잔잔(1.0) ~ 괴물 파도(1.75)
+    this.backdropUrl = STAGE_BACKDROP[themeKey] ?? null;   // 이미지 백드롭 테마면 절차적 배경 생략
+    this.stageSet = null;
     this._applyAtmosphere();
     this._buildLighting();
-    this._buildOcean();
-    this._buildBackground();
+    if (this.backdropUrl) {
+      this._buildImageBackdrop();   // 픽셀아트 전체 배경 — 3D 바다·하늘·섬·구름 미생성
+    } else {
+      this._buildOcean();
+      this._buildBackground();
+      if (this.themeKey === 'jeju') this.stageSet = new JejuStageSet(this.scene);
+    }
   }
 
   // 배경·포그 = 테마 하늘 중간톤(거리 헤이즈). 밤/폭풍은 자동으로 어두워짐.
+  // 이미지 백드롭 테마는 텍스처 로드 전까지의 임시 색만 깔고 포그는 끈다(그림과 톤 불일치 방지;
+  // 액터는 z<55라 어차피 포그 무영향).
   _applyAtmosphere() {
     const atmo = this.theme.sky?.[1] ?? BG_COLOR;
     this.scene.background = new THREE.Color(atmo);
-    this.scene.fog = new THREE.Fog(atmo, 55, 110);
+    this.scene.fog = this.backdropUrl ? null : new THREE.Fog(atmo, 55, 110);
+  }
+
+  // 픽셀아트 전체 배경 — public 이미지를 scene.background 텍스처로 깔아 화면을 꽉 채운다.
+  // NearestFilter로 업스케일 시에도 픽셀 경계를 선명하게 유지(픽셀아트 보존). 비동기 로드라
+  // 로드 전엔 _applyAtmosphere의 임시 하늘색이 보인다.
+  _buildImageBackdrop() {
+    new THREE.TextureLoader().load(this.backdropUrl, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;   // sRGB 이미지 정확한 색
+      tex.magFilter = THREE.NearestFilter;     // 픽셀아트 선명한 경계 유지
+      tex.minFilter = THREE.NearestFilter;
+      tex.generateMipmaps = false;
+      this.scene.background = tex;
+      this.backdropTex = tex;
+    });
   }
 
   // 조명 — 테마 분위기는 '빛 색(틴트)'으로(밤=차가운 청 / 폭풍=회색 / 화산=따뜻함).
@@ -65,14 +103,21 @@ export class World {
   _buildOcean() {
     this.waves = [];
     const colors = this._waterColors();   // [원경, 중경, 근경]
-    WAVE_LAYERS.forEach((def, i) => {
-      const geo = new THREE.PlaneGeometry(120, 30, def.seg, def.seg);
+    const layers = this.themeKey === 'jeju' ? JEJU_WAVE_LAYERS : WAVE_LAYERS;
+    layers.forEach((def, i) => {
+      const geo = new THREE.PlaneGeometry(def.width, def.depth, def.seg, def.seg);
       geo.rotateX(-Math.PI / 2);   // 수평 바다 표면으로 눕힘
-      const mat = new THREE.MeshLambertMaterial({ color: colors[Math.min(colors.length - 1, i)], flatShading: true });
+      const mat = new THREE.MeshLambertMaterial({
+        color: colors[Math.min(colors.length - 1, i)],
+        flatShading: true,
+        transparent: def.opacity < 1,
+        opacity: def.opacity,
+        depthWrite: def.opacity >= 1,
+      });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(0, def.y, def.z);
       this.scene.add(mesh);
-      this.waves.push({ mesh, speed: def.speed });
+      this.waves.push({ mesh, speed: def.speed, amp: def.amp });
     });
   }
 
@@ -95,6 +140,7 @@ export class World {
   // 배경 — 하늘(그라데이션) · 태양/화산노을 · 별(밤) · 섬(연안 테마만) · 구름. 전부 테마색.
   _buildBackground() {
     const th = this.theme;
+    if (this.themeKey === 'jeju') return;
 
     // 하늘 — sky[0](천정)→sky[2](수평선) 세로 그라데이션(정점 색). 조명 영향 없는 백드롭.
     const skyGeo = new THREE.PlaneGeometry(200, 80, 1, 8);
@@ -141,8 +187,8 @@ export class World {
       this.scene.add(stars);
     }
 
-    // 섬 — 연안 테마(jeju 계열)만. 외해/밤/폭풍은 생략해 탁 트인 바다.
-    if (th.island) {
+    // 섬 — 연안 테마만. jeju는 별도 3D 세트가 제주 해안을 담당한다.
+    if (th.island && this.themeKey !== 'jeju') {
       const island = new THREE.Group();
       const sandMat = new THREE.MeshLambertMaterial({ color: 0xffd166, flatShading: true });
       const peakMat = new THREE.MeshLambertMaterial({ color: th.island.color ?? 0x52b788, flatShading: true });
@@ -188,25 +234,35 @@ export class World {
   }
 
   update(t) {
-    this._animateWaves(t);
-    this._moveClouds();
+    if (this.waves) this._animateWaves(t);    // 이미지 백드롭 테마는 파도·구름 메시가 없음
+    if (this.clouds) this._moveClouds();
+    this.stageSet?.update(t);
   }
 
-  // 파도 — sin/cos 합성으로 정점 높이(y) 변위. flatShading이라 노멀 재계산 불필요.
-  // 진폭/촐싹임을 테마 swell로 스케일(잔잔↔괴물파도). 근경 base(0.40)가 ride 평면(0.7)보다
-  // 낮아, 거칠어져도 마루가 장애물 위를 '지나갈' 뿐 영구히 덮지 않음(가독성 보존).
+  // 백드롭 텍스처는 scene.background라 disposeObject(씬 자식 순회) 대상이 아님 — 직접 해제.
+  dispose() {
+    this.backdropTex?.dispose();
+    this.stageSet?.dispose();
+  }
+
+  // 파도 — sin/cos 합성으로 정점 높이(y) 변위. flatShading이라 노멀 재계산 불필요. 진폭/촐싹임은
+  // 테마 swell로 스케일(잔잔↔괴물파도). z-위상의 시간항을 음수로 둬 마루가 카메라(+z) 쪽으로 굴러와
+  // '전진감'을 준다. 근경 base(0.40)가 ride 평면(0.7)보다 낮아 마루가 장애물 위를 '지나갈' 뿐 영구히
+  // 덮지 않음(가독성 — swell↑ 시 이 여유가 줄어드니 과하게 올리지 말 것).
+  // 참고: 흰 포말/물마루는 vertex-color로 시도했으나 이 매끈한 저폴리 물에선 블룸/스미어가 돼 보류.
+  //       제대로 하려면 전용 셰이더/포말 텍스처 필요(별도 작업).
   _animateWaves(t) {
     const sw = this.swell;
     const a1 = 0.30 * sw, a2 = 0.15 * sw;          // 진폭 (잔잔 0.45 ~ 괴물파도 ~0.79)
-    for (const { mesh, speed } of this.waves) {
+    for (const { mesh, speed, amp = 1 } of this.waves) {
       const sp  = speed * (1 + (sw - 1) * 0.35);   // 거친 바다일수록 더 빠르게 촐싹임
       const pos = mesh.geometry.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const x = pos.getX(i);
         const z = pos.getZ(i);
         pos.setY(i,
-          Math.sin(x * 0.18 + t * sp) * a1 +
-          Math.cos(z * 0.25 + t * sp * 0.7) * a2,
+          (Math.sin(x * 0.18 + t * sp) * a1 +
+          Math.cos(z * 0.25 - t * sp * 0.7) * a2) * amp,   // ⬅ -t: 마루가 카메라 쪽으로 굴러옴(전진감)
         );
       }
       pos.needsUpdate = true;
@@ -215,7 +271,7 @@ export class World {
 
   _moveClouds() {
     for (const cloud of this.clouds) {
-      cloud.position.x -= 0.012;
+      cloud.position.x -= 0.03;   // 바람 — 더 빠른 흐름(파도 전진감과 함께 환경 생동감 ↑)
       if (cloud.position.x < -70) cloud.position.x = 70;
     }
   }
