@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 
 const OBSTACLE_ASSETS = [
-  ['obstacle-flying-fish', 'obstacles/flying-fish-b.png'],
+  ['obstacle-flying-fish', 'obstacles/flying-fish-a.png'],
+  ['obstacle-flying-fish-small', 'obstacles/flying-fish-a.png'],
+  ['obstacle-flying-fish-burst', 'obstacles/flying-fish-b.png'],
   ['obstacle-shark', 'obstacles/shark.png'],
   ['obstacle-whale', 'obstacles/whale.png'],
   ['obstacle-jellyfish', 'obstacles/jellyfish.png'],

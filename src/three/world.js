@@ -16,9 +16,13 @@ const WAVE_LAYERS = [
 ];
 
 const JEJU_WAVE_LAYERS = [
-  { z: 1.2, y: -1.15, seg: 20, speed: 0.58, width: 120, depth: 18, amp: 0.52, opacity: 0.82 },
-  { z: 5.1, y: -0.98, seg: 16, speed: 0.78, width: 120, depth: 16, amp: 0.48, opacity: 0.78 },
-  { z: 8.1, y: -0.82, seg: 12, speed: 0.95, width: 120, depth: 13, amp: 0.42, opacity: 0.70 },
+  // far: 불투명(opacity 1.0 → depthWrite:true) 기반판. 수면 바로 아래(y -0.12)에서 마루 crest ~0.34.
+  // far edge z=-4 → 화면 44.0%로 투영돼 그림 수평선(45.5%)보다 1.5% 위 → 정적 청록 픽셀 전체를 가림.
+  { z: 12.0, y: -0.12, seg: 24, speed: 0.62, width: 150, depth: 32, amp: 0.38, opacity: 1.0 },
+  // mid: 불투명 기반판. far edge z=-1.5 → 화면 46.3%(수평선 아래) → 중간 너울 디테일 추가.
+  { z:  5.5, y:  0.12, seg: 18, speed: 0.84, width: 132, depth: 14, amp: 0.52, opacity: 1.0 },
+  // near: 반투명(0.88) 유지 → 마루 crest 0.58 < WATER_Y 0.7 → 장애물(FLYING_FISH) 위를 지나가되 흐리게만 함.
+  { z:  9.0, y:  0.30, seg: 14, speed: 1.02, width: 132, depth: 20, amp: 0.52, opacity: 0.88 },
 ];
 
 // 3D 물색 오버라이드(테마별, 원경→근경). 없으면 theme.sea[0]에서 밝기 램프로 파생.
