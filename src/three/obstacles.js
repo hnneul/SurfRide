@@ -2,21 +2,21 @@ import * as THREE from 'three';
 import { WATER_Y, gameX2WorldX, rideY2WorldZ, disposeObject } from './bridge.js';
 
 const PIXEL_ASSETS = Object.freeze({
-  FLYING_FISH: '/img/obstacle-flying-fish.png',
-  SHARK:       '/img/obstacle-shark.png',
-  WHALE:       '/img/obstacle-whale.png',
-  JELLYFISH:   '/img/obstacle-jellyfish.png',
-  OCTOPUS:     '/img/obstacle-octopus.png',
-  LIGHTNING:   '/img/obstacle-lightning.png',
+  FLYING_FISH: '/obstacles/flying-fish-b.png',
+  SHARK:       '/obstacles/shark.png',
+  WHALE:       '/obstacles/whale.png',
+  JELLYFISH:   '/obstacles/jellyfish.png',
+  OCTOPUS:     '/obstacles/octopus.png',
+  LIGHTNING:   '/obstacles/lightning.png',
 });
 
 const PIXEL_SPRITE_SCALE = Object.freeze({
-  FLYING_FISH: [1.95, 1.05],
-  SHARK:       [2.45, 1.15],
-  WHALE:       [3.95, 2.05],
-  JELLYFISH:   [1.35, 1.55],
-  OCTOPUS:     [1.8, 1.65],
-  LIGHTNING:   [1.05, 3.4],
+  FLYING_FISH: [2.15, 1.72],
+  SHARK:       [2.75, 1.78],
+  WHALE:       [3.7, 2.6],
+  JELLYFISH:   [1.62, 1.94],
+  OCTOPUS:     [2.05, 1.95],
+  LIGHTNING:   [0.82, 4.9],
 });
 
 // 장애물 메시 6종 (저폴리). 모두 base가 그룹 원점=수면에 — reveal을 scale.y에 실어 분출.
