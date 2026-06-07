@@ -20,6 +20,9 @@ const CENTER_X      = ERUPT_X;   // 서퍼 기준 열(좌우 이동 중심)
 const LATERAL_ACCEL = 2600;      // 가로 가속(px/s²)
 const LATERAL_MAX   = 540;       // 최대 가로 속도(px/s)
 const LATERAL_DAMP  = 10;        // 무입력 시 가로 감쇠율(/s)
+// 맨 위(장애물 생성선=RIDE_TOP)엔 못 올라가게 하는 여유. 거기 서면 장애물이 분출(reveal)되기 전에
+// 지나가버려 충돌이 안 성립 → 무적이 됐다. 이 여유만큼 아래에 두면 장애물이 충돌 가능해진 뒤 만난다.
+const RIDE_TOP_MARGIN = 70;
 
 export class Player {
   constructor(scene) {
@@ -181,7 +184,8 @@ export class Player {
     else           this.vRide -= this.vRide * Math.min(1, RIDE.DAMP * dt);
     this.vRide = Phaser_clamp(this.vRide, -RIDE.MAX, RIDE.MAX);
     this.baseY += this.vRide * dt;
-    if (this.baseY <= RIDE_TOP_Y)    { this.baseY = RIDE_TOP_Y;    if (this.vRide < 0) this.vRide = 0; }
+    const topLimit = RIDE_TOP_Y + RIDE_TOP_MARGIN;
+    if (this.baseY <= topLimit)      { this.baseY = topLimit;     if (this.vRide < 0) this.vRide = 0; }
     if (this.baseY >= RIDE_BOTTOM_Y) { this.baseY = RIDE_BOTTOM_Y; if (this.vRide > 0) this.vRide = 0; }
 
     const frac = (this.baseY - RIDE_TOP_Y) / (RIDE_BOTTOM_Y - RIDE_TOP_Y);

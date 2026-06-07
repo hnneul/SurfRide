@@ -146,7 +146,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
       const arrow  = bw.side === 'left' ? '←' : '→';
       const sideKo = bw.side === 'left' ? '왼쪽' : '오른쪽';
       el.bigwave.textContent = bw.warn
-        ? `🌊 큰 파도! ${arrow} ${sideKo} 포켓으로!`
+        ? `🌊 큰 파도! ${arrow} ${sideKo}에서 타!`
         : (bw.riding ? '🏄 파도 타는 중!' : `${arrow} ${sideKo}으로 가서 타!`);
       el.bigwaveEdge.classList.add('is-active');
       el.bigwaveEdge.classList.toggle('is-riding', !!bw.riding);
@@ -162,8 +162,8 @@ export function mountHud(parent = document.getElementById('game-container')) {
       el.barrel.classList.toggle('is-warn', !!br.warn);
       el.barrel.classList.toggle('is-tubed', !!br.tubed);
       el.barrel.textContent = br.warn
-        ? '🌊 배럴이 열린다 — ↓ 눌러 박혀!'
-        : (br.tubed ? '🏄 배럴 타는 중!' : '⬇ ↓ 눌러 튜브에 박혀!');
+        ? '🌊 파도가 말린다 — ↓로 올라타!'
+        : (br.tubed ? '🤙 유후~ 서핑 즐기는 중!' : '⬇ ↓ 눌러 파도에 올라타!');
       el.barrelEdge.classList.toggle('is-active', !!br.active);
       el.barrelEdge.classList.toggle('is-tubed', !!br.tubed);
       el.barrelMeter.hidden = !br.active;
@@ -249,7 +249,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
     flash,
     perfectJump,
     trick,
-    toast: showToast,   // 큰 파도·균형 회복 등 일반 보상 토스트
+    toast: showToast,
     destroy() {
       if (perfectToastTimer) clearTimeout(perfectToastTimer);
       root.remove();

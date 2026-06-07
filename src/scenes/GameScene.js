@@ -58,9 +58,6 @@ export default class GameScene extends Phaser.Scene {
     this.stageGimmicks       = this.stageGimmickManager.fx;   // player·Three·HUD가 공유하는 fx blackboard
     this.bigWaveManager      = new BigWaveManager(this);
     this.barrelManager       = new BarrelManager(this);
-    this._balanceWarned = false;
-    this._clutchCdMs    = 0;
-
     this.cursors  = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.pKey     = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
@@ -122,7 +119,6 @@ export default class GameScene extends Phaser.Scene {
     this.player.update(dt, this.cursors, this.spaceKey, this.stageGimmicks);
     if (this.player.trickLanded)       this._onTrick();
     else if (this.player.trickBotched) this._onTrickBotch();
-    this._updateBalanceClutch(dt);   // 균형이 무너지기 직전 회복하면 보상(위험-보상)
     this.obstacleManager.update(dt, this.stageTimer, this.player);
     const caught = this.goldenFish.update(dt, this.player);
     for (let i = 0; i < caught; i++) this.scoreManager.onGoldenFish();
@@ -295,24 +291,6 @@ export default class GameScene extends Phaser.Scene {
       this.cameras.main.shake(260, 0.005);
       this.three?.shake(260, 0.005);
       this.hud?.flash(120, 150, 220, 220);
-    }
-  }
-
-  // 균형이 경고 영역까지 갔다가 안정으로 회복하면 클러치 보상(지상 한정·쿨다운으로 악용 방지).
-  _updateBalanceClutch(dt) {
-    this._clutchCdMs = Math.max(0, this._clutchCdMs - dt);
-    const tiltAbs = Math.abs(this.player.tilt);
-    if (tiltAbs >= BALANCE.WARN_AT) {
-      this._balanceWarned = true;
-    } else if (this._balanceWarned && this.player.isGrounded &&
-               tiltAbs < BALANCE.WARN_AT * 0.45 && this._clutchCdMs <= 0 && !this.player.wiped) {
-      this._balanceWarned = false;
-      this._clutchCdMs = 2_500;
-      const pts = this.scoreManager.onBalanceClutch(this.player.baseY);
-      this.three?.surferSplash(1.2, 0x9ffce0);
-      this.cameras.main.flash(90, 120, 255, 200, false);
-      this.hud?.flash(150, 255, 220, 110);
-      this.hud?.toast('균형 회복!', `+${pts}`);
     }
   }
 

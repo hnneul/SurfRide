@@ -23,14 +23,22 @@ export class Obstacles {
   _make(obsOrType) {
     const type = typeof obsOrType === 'string' ? obsOrType : obsOrType.type;
     switch (type) {
-      case 'SHARK':       return this._makeShark();
-      case 'WHALE':       return this._makeWhale();
-      case 'FLYING_FISH': return this._makeFlyingFish();
+      case 'SHARK':       return this._faceForward(this._makeShark());
+      case 'WHALE':       return this._faceForward(this._makeWhale());
+      case 'FLYING_FISH': return this._faceForward(this._makeFlyingFish());
       case 'JELLYFISH':   return this._makeJellyfish();
       case 'OCTOPUS':     return this._makeOctopus();
       case 'LIGHTNING':   return this._makeLightning();
       default:            return this._makeFallback();
     }
+  }
+
+  // 방향성 생물(상어·고래·날치)을 진행 방향(+z=플레이어 쪽)으로 돌린다 — 옆모습(가로)이 아니라
+  // '세로로 다가오는' 정면 실루엣. 머리(local -x)가 +z(가까운 쪽=플레이어)를 향한다.
+  // 충돌 hitbox도 obstacle.js OBSTACLE_META에서 같이 세로(좁은 x)로 맞췄다.
+  _faceForward(g) {
+    g.rotation.y = Math.PI / 2;
+    return g;
   }
 
   // ── 상어 — 강철빛 방추형 몸통 + 등지느러미 + 갈라진 꼬리 ──────────────────

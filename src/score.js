@@ -14,7 +14,6 @@ export const SCORE = Object.freeze({
   BIG_WAVE:         400,   // 큰 파도 성공 마무리 보너스(품질 비례)
   BARREL_PER_SEC:    90,   // 배럴(튜브) 안에서 버티는 동안 초당
   BARREL_MADE:      700,   // 배럴 '메이드 잇'(끝까지 버팀) 마무리 보너스(품질 비례)
-  BALANCE_CLUTCH:   130,   // 균형이 무너지기 직전 회복(위험-보상)
   STAGE_CLEAR:     1000,
 });
 
@@ -39,7 +38,6 @@ export const ScoreEvent = Object.freeze({
   GOLDEN_FISH:    'GOLDEN_FISH',
   WAVE_RIDE:      'WAVE_RIDE',
   BARREL:         'BARREL',
-  BALANCE_CLUTCH: 'BALANCE_CLUTCH',
   WEATHER_BONUS:  'WEATHER_BONUS',
   STAGE_CLEAR:    'STAGE_CLEAR',
 });
@@ -67,7 +65,6 @@ export class ScoreManager {
     this.goldenFish          = 0;    // 황금 물고기 획득 수
     this.bigWaves            = 0;    // 큰 파도 성공적으로 탄 수
     this.barrels             = 0;    // 배럴(튜브) '메이드 잇' 성공 수
-    this.clutches            = 0;    // 균형 회복(클러치) 수
     this.breakdown = {
       [ScoreEvent.SURVIVAL]:      0,
       [ScoreEvent.DODGE]:         0,
@@ -79,7 +76,6 @@ export class ScoreManager {
       [ScoreEvent.GOLDEN_FISH]:   0,
       [ScoreEvent.WAVE_RIDE]:     0,
       [ScoreEvent.BARREL]:        0,
-      [ScoreEvent.BALANCE_CLUTCH]:0,
       [ScoreEvent.WEATHER_BONUS]: 0,
       [ScoreEvent.STAGE_CLEAR]:   0,
     };
@@ -167,17 +163,6 @@ export class ScoreManager {
     return pts;
   }
 
-  // 균형 회복(클러치) — 무너지기 직전에서 살려냈을 때. 콤보 +1.
-  onBalanceClutch(y) {
-    const pts = this._applyMultipliers(SCORE.BALANCE_CLUTCH, y);
-    this._add(ScoreEvent.BALANCE_CLUTCH, pts);
-    this.clutches++;
-    this.combo++;
-    this.maxCombo           = Math.max(this.maxCombo, this.combo);
-    this.maxComboMultiplier = Math.max(this.maxComboMultiplier, this._comboMultiplier());
-    return pts;
-  }
-
   onStageClear() { this._add(ScoreEvent.STAGE_CLEAR, SCORE.STAGE_CLEAR); }
   onComboBreak() { this.combo = 0; }
 
@@ -232,7 +217,6 @@ export class ScoreManager {
       goldenFish:         this.goldenFish,
       bigWaves:           this.bigWaves,
       barrels:            this.barrels,
-      clutches:           this.clutches,
       breakdown:          { ...this.breakdown },
     };
   }
