@@ -58,7 +58,7 @@
  * @property {SpawnEvent[]} events        스테이지 스크립트
  */
 
-// ─── 점수 리포트 (score.js → ResultScene / HUDScene) ──────────────────────────
+// ─── 점수 리포트 (score.js → ResultScene) ──────────────────────────
 
 /**
  * 점수 항목별 누적. 키는 score.js 의 ScoreEvent 값과 1:1.

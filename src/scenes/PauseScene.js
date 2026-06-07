@@ -22,7 +22,6 @@ export default class PauseScene extends Phaser.Scene {
 
     this._btn(cx - 125, cy + 52, 210, 64, '계속하기', true,  () => this.gameScene.resumeGame());
     this._btn(cx + 125, cy + 52, 210, 64, '메인으로', false, () => {
-      this.scene.stop('HUDScene');
       this.scene.stop('GameScene');
       this.scene.stop('PauseScene');
       this.scene.start('MainMenuScene');

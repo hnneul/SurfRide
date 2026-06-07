@@ -1,4 +1,4 @@
-// 인게임 HUD DOM 오버레이 (Three 캔버스 위). 게임 로직·HUDScene은 안 건드리고
+// 인게임 HUD DOM 오버레이 (Three 캔버스 위). 게임 로직은 안 건드리고
 // GameScene 상태를 매 프레임 읽어 "표시만" 한다. mountHud() → { update(state), flash(), destroy() }.
 import { BALANCE } from '../constants.js';
 

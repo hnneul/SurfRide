@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BACKGROUND_THEMES } from '../oceanBackground.js';
+import { BACKGROUND_THEMES } from '../backgroundThemes.js';
 import { WATER_Y } from './bridge.js';
 import { JejuStageSet } from './jejuStage.js';
 
@@ -51,7 +51,7 @@ const STAGE_BACKDROP = {
 };
 
 // 월드 = 바다(파도 3겹) + 배경(하늘·태양/노을·별·섬·구름) + 조명 + 대기(배경/포그).
-// 전부 스테이지 테마(2D OceanBackground와 같은 BACKGROUND_THEMES)에서 색/밤·폭풍/swell을 읽어 적용.
+// 전부 스테이지 테마(backgroundThemes.js의 BACKGROUND_THEMES)에서 색/밤·폭풍/swell을 읽어 적용.
 export class World {
   constructor(scene, themeKey) {
     this.scene = scene;
