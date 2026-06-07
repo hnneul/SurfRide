@@ -1,5 +1,5 @@
 import {
-  LOGICAL_WIDTH, RIDE_TOP_Y, RIDE_BOTTOM_Y, isDangerY, zoneMultiplierForY, BALANCE,
+  LOGICAL_WIDTH, RIDE_TOP_Y, RIDE_BOTTOM_Y, isDangerY, zoneMultiplierForY, BALANCE, TRICK,
   MAX_HEALTH, HIT_IFRAME_MS,
 } from './constants.js';
 
@@ -71,6 +71,13 @@ export class Player {
     this.wiped      = false;
     this._driftSeed = Math.random() * Math.PI * 2;
 
+    // 에어 트릭: 점프 중 누적 회전(rad, 부호=방향). 착지 때 정렬 판정 후 0으로.
+    this.trickRotation  = 0;
+    this.trickHalfSpins = 0;     // 마지막 착지에서 확정한 반바퀴(180°) 수 — GameScene이 소비
+    this.trickLanded    = false; // 이번 프레임 클린 랜딩 발생(점수)
+    this.trickBotched   = false; // 이번 프레임 착지 실패(휘청)
+    this.staggerMs      = 0;     // botch 비틀거림(>0이면 점프·상하이동 봉인)
+
     // 체력 & 피격 무적
     this.health     = this.maxHealth;
     this.invulnMs   = 0;
@@ -117,10 +124,12 @@ export class Player {
   update(deltaMs, cursors, spaceKey, environment = null) {
     const dt = deltaMs / 1000;
 
-    if (this.invulnMs > 0) this.invulnMs = Math.max(0, this.invulnMs - deltaMs);
+    if (this.invulnMs > 0)  this.invulnMs  = Math.max(0, this.invulnMs - deltaMs);
+    if (this.staggerMs > 0) this.staggerMs = Math.max(0, this.staggerMs - deltaMs);
 
     this._handleSteer(dt, cursors, environment);
     this._handleBalance(dt, cursors, environment);
+    this._handleTrick(dt, cursors);
     this._handleJump(dt, spaceKey, environment);
     this._applyPhysics(dt, environment);
     this._render(deltaMs);
@@ -129,8 +138,9 @@ export class Player {
   // ←/→ 카운터-스티어로 균형 유지. 무입력 시 드리프트만 누적 → 와이프아웃.
   _handleBalance(dt, cursors, environment) {
     if (!this.isGrounded) {
-      // 공중 = 균형 리셋 호흡: 드리프트 정지, tilt가 0쪽으로 완화
-      this.tilt -= this.tilt * Math.min(1, 3.0 * dt);
+      // 공중 = 드리프트 정지 + 균형은 천천히만 완화(지상보다 훨씬 느리게). 점프로 '완전'
+      // 리셋은 안 되되(탈출구 차단), 마커가 얼지 않고 슬슬 움직이도록.
+      this.tilt -= this.tilt * Math.min(1, BALANCE.AIR_EASE * dt);
       return;
     }
 
@@ -154,10 +164,23 @@ export class Player {
     if (Math.abs(this.tilt) >= wipeoutAt) this.wiped = true;
   }
 
+  // 공중에서만 ←/→ 를 '스핀 입력'으로 전환(지상에선 _handleBalance가 균형 보정에 사용).
+  // 누르는 동안만 회전하므로, 손을 떼서 각도를 맞춰 착지 정렬을 노릴 수 있다.
+  _handleTrick(dt, cursors) {
+    this.trickLanded  = false;
+    this.trickBotched = false;
+    if (this.isGrounded) return;
+    let dir = 0;
+    if (cursors.left?.isDown)  dir -= 1;
+    if (cursors.right?.isDown) dir += 1;
+    this.trickRotation += dir * TRICK.SPIN_RATE * dt;
+  }
+
   _handleSteer(dt, cursors, environment) {
-    if (cursors.up.isDown)        this.vSteer -= STEER_ACCEL * dt;
-    else if (cursors.down.isDown) this.vSteer += STEER_ACCEL * dt;
-    else                          this.vSteer -= this.vSteer * Math.min(1, 11 * dt);
+    const locked = this.staggerMs > 0;   // 비틀거림 중 상하 이동 봉인
+    if (!locked && cursors.up.isDown)        this.vSteer -= STEER_ACCEL * dt;
+    else if (!locked && cursors.down.isDown) this.vSteer += STEER_ACCEL * dt;
+    else                                     this.vSteer -= this.vSteer * Math.min(1, 11 * dt);
 
     this.vSteer += (environment?.windForce ?? 0) * dt;
     this.vSteer = Phaser_clamp(this.vSteer, -STEER_MAX, STEER_MAX);
@@ -177,6 +200,7 @@ export class Player {
     if (pressed && !this._spacePrev) this._jumpBufferMs = JUMP_BUFFER_MS;
     this._spacePrev = pressed;
 
+    if (this.staggerMs > 0) { this._jumpBufferMs = 0; return; }   // 비틀거림 중 점프 봉인
     if (this._jumpBufferMs <= 0) return;
 
     if (this.isGrounded) {
@@ -199,6 +223,7 @@ export class Player {
         this.jumpVel    = 0;
         this.isJumping  = false;
         this.isGrounded = true;
+        this._resolveTrickLanding();
         const jitter = environment?.landingJitter ?? 0;
         if (jitter > 0) {
           this.baseY += (Math.random() * 2 - 1) * jitter;
@@ -209,13 +234,34 @@ export class Player {
     this.y = this.baseY - this.jumpOffset;
   }
 
+  // 착지 정렬 판정 — 회전이 180°(π)의 배수에 CLEAN_TOL 이내면 클린 랜딩(점수),
+  // 어중간하면 휘청(BOTCH_TILT 균형 충격). 살짝(< 반바퀴-여유)만 돈 건 시도로 안 봄.
+  _resolveTrickLanding() {
+    const rot = this.trickRotation;
+    this.trickRotation = 0;
+    if (Math.abs(rot) < TRICK.MIN_SPIN - TRICK.CLEAN_TOL) return;   // 트릭 시도 아님
+
+    const halfSpins = Math.round(rot / Math.PI);                    // 가장 가까운 180° 배수
+    const err       = Math.abs(rot - halfSpins * Math.PI);
+    if (Math.abs(halfSpins) >= 1 && err <= TRICK.CLEAN_TOL) {
+      this.trickHalfSpins = Math.abs(halfSpins);
+      this.trickLanded    = true;
+    } else {
+      this.trickBotched = true;
+      this.staggerMs = TRICK.STAGGER_MS;                            // 비틀거림(점프로 회복 불가)
+      this.tilt += Math.sign(rot || 1) * TRICK.BOTCH_TILT;          // 어중간 → 휘청
+      this.tilt  = Phaser_clamp(this.tilt, -1.25, 1.25);
+    }
+  }
+
   _render(deltaMs) {
     // 카빙 틸트: 수직 속도 + 균형(tilt) 합성, 점프 중엔 약간 들림
     const carve = Phaser_clamp(this.vSteer / STEER_MAX, -1, 1) * 0.30;
     const balance = this.tilt * 0.42;
     const air   = this.isGrounded ? 0 : -0.12;
+    const trick = this.isGrounded ? 0 : this.trickRotation;
     this.visual.setPosition(this.x, this.y);
-    this.visual.setRotation(carve + balance + air);
+    this.visual.setRotation(carve + balance + air + trick);
     this.board.setFillStyle(this.isGrounded ? 0xfff2b2 : 0xffffff);
 
     // 피격 무적 중 깜빡임
