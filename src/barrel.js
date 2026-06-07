@@ -1,18 +1,14 @@
-import { rideYToFrac } from './constants.js';
-
 // ─── 배럴(튜브 라이딩) — 위험-보상의 하이라이트 ────────────────────────────────
-// 파도가 말려 동굴(튜브)을 만든다. 열린 동안 '마루 쪽 립'(rideFrac 낮게=위)에 붙어 유지하면 튜브 안 →
-// 초당 대점수 + 조여드는 립(점점 더 위로 요구). 끝까지 버티면 '메이드 잇' 대박,
-// 도중에 장애물에 맞으면 배럴이 깨져 마무리 보너스를 날린다(깊게 커밋 = 진짜 위험).
+// 파도가 말려 동굴(튜브)을 만든다. 열린 동안 ↓를 눌러 '튜브에 박혀' 버티면(서퍼는 제자리 고정 — player가
+// barrelTucked로 세로를 잠금) 튜브 안 → 초당 대점수. 그 와중에 좌우로 장애물을 피해야 하고, 끝까지
+// 버티면 '메이드 잇' 대박, 도중에 장애물에 맞으면 배럴이 깨져 마무리 보너스를 날린다(커밋 = 진짜 위험).
 //
 // 판정·점수·연출만 담당. 튜브 렌더는 ThreeLayer.barrel(BarrelTube)가 tube()를 읽어 그린다.
 // GameScene이 소유하며 매 프레임 update(dt)를 호출하고, HUD는 hud()로 읽어간다.
 
 const WARN_MS = 1_600;   // 예고(말려 들어오는 파도) 길이
 const OPEN_MS = 6_000;   // 배럴이 열려 있는 창
-const GOOD_MS = 3_200;   // 이만큼 튜브에 있으면 품질 1.0(만점 보너스)
-const POCKET_BASE = 0.40;   // 튜브 진입 임계(rideFrac) — 이보다 '위'(작음)면 튜브. 창 진행에 따라 더 위로(립이 조임)
-const POCKET_RISE = 0.18;   // 창 끝엔 0.22까지 — 점점 더 마루(위)로 붙어야
+const GOOD_MS = 3_200;   // 이만큼 튜브에 박혀 있으면 품질 1.0(만점 보너스)
 
 export class BarrelManager {
   constructor(scene) {
@@ -54,11 +50,6 @@ export class BarrelManager {
     return { active: this.phase === 'open', tubed: this.tubed, progress: this.progress };
   }
 
-  // 포켓 진입 임계 — 창이 진행될수록 더 위로(마루 쪽, 립이 조여든다)
-  _pocketThreshold() {
-    return POCKET_BASE - POCKET_RISE * this.progress;
-  }
-
   update(dt) {
     const s = this.scene;
     if (!s.three) return;
@@ -85,8 +76,8 @@ export class BarrelManager {
 
     // open — 포켓 유지 판정 + 초당 보상, 창이 끝나면 정산
     this.openMs += dt;
-    const frac = rideYToFrac(s.player.baseY);
-    const tubed = !this.busted && s.player.isGrounded && frac <= this._pocketThreshold();
+    // '제자리에 박혀 유지' — 위치가 아니라 ↓ 홀드(튜브에 박혀 버티기)로 판정. player가 세로를 고정한다.
+    const tubed = !this.busted && s.player.isGrounded && !!s.cursors?.down?.isDown;
     this.tubed = tubed;
 
     if (tubed) {

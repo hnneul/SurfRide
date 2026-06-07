@@ -143,9 +143,11 @@ export function mountHud(parent = document.getElementById('game-container')) {
       el.bigwave.hidden = false;
       el.bigwave.classList.toggle('is-warn', !!bw.warn);
       el.bigwave.classList.toggle('is-riding', !!bw.riding);
+      const arrow  = bw.side === 'left' ? '←' : '→';
+      const sideKo = bw.side === 'left' ? '왼쪽' : '오른쪽';
       el.bigwave.textContent = bw.warn
-        ? '🌊 큰 파도가 온다!'
-        : (bw.riding ? '🏄 마루 타는 중!' : '🌊 마루를 따라가!');
+        ? `🌊 큰 파도! ${arrow} ${sideKo} 포켓으로!`
+        : (bw.riding ? '🏄 파도 타는 중!' : `${arrow} ${sideKo}으로 가서 타!`);
       el.bigwaveEdge.classList.add('is-active');
       el.bigwaveEdge.classList.toggle('is-riding', !!bw.riding);
     } else {
@@ -160,8 +162,8 @@ export function mountHud(parent = document.getElementById('game-container')) {
       el.barrel.classList.toggle('is-warn', !!br.warn);
       el.barrel.classList.toggle('is-tubed', !!br.tubed);
       el.barrel.textContent = br.warn
-        ? '🌊 배럴이 열린다 — 마루로 붙어!'
-        : (br.tubed ? '🏄 배럴 타는 중!' : '⬆ 더 위로! 립을 따라 붙어');
+        ? '🌊 배럴이 열린다 — ↓ 눌러 박혀!'
+        : (br.tubed ? '🏄 배럴 타는 중!' : '⬇ ↓ 눌러 튜브에 박혀!');
       el.barrelEdge.classList.toggle('is-active', !!br.active);
       el.barrelEdge.classList.toggle('is-tubed', !!br.tubed);
       el.barrelMeter.hidden = !br.active;

@@ -116,6 +116,7 @@ export class World {
     this.waveParams = this._resolveWaveParams();
     this._t = 0;                          // 마지막 update 시간(샘플러 기본값)
     this.bigWave = null;                  // 큰 파도 이벤트 상태(없으면 null)
+    this.bigWavePocketX = null;           // 활성 시 포켓 중심(월드 x) — 한쪽에만 솟음
 
     this._applyAtmosphere();
     this._buildLighting();
@@ -483,34 +484,39 @@ export class World {
   // ─── 큰 파도 이벤트 ────────────────────────────────────────────────────────────
   // 평소 너울 위에 '진행하는 거대 마루'를 더한다. 원경(작은 z)에서 근경(큰 z=서퍼)으로 밀려온다.
   // GameScene이 trigger로 켜고, sampleWaveHeight에 가산돼 서퍼·장애물·수면이 함께 솟는다.
+  // 좌우 포켓형 큰 파도 — 화면 '한쪽(pocketX)'에만 거대 너울이 솟고 나머지는 평평.
+  // 플레이어가 그 x-구역에 들어가 타게 한다(판정은 bigWaves.js). env로 차올랐다 빠진다.
   triggerBigWave(opts = {}) {
     this.bigWave = {
-      amp:   opts.amp   ?? (1.5 + (this.swell - 1) * 0.7),
-      width: opts.width ?? 3.0,
-      durMs: opts.durMs ?? 5200,
-      fromZ: -8, toZ: 13,
-      ageMs: 0, frontZ: -8, env: 0,
+      amp:     opts.amp     ?? (1.6 + (this.swell - 1) * 0.7),
+      pocketX: opts.pocketX ?? -4.4,   // 포켓 중심(월드 x)
+      pocketW: opts.pocketW ?? 1.8,    // 포켓 가로 폭(Gaussian σ, 월드u)
+      durMs:   opts.durMs   ?? 5200,
+      ageMs: 0, env: 0,
     };
     this.bigWaveProgress = 0;
-    this.bigWaveCrestZ = -8;
+    this.bigWavePocketX = this.bigWave.pocketX;
   }
 
   _updateBigWave(dtMs) {
     const bw = this.bigWave;
-    if (!bw) { this.bigWaveProgress = 0; this.bigWaveCrestZ = null; return; }
+    if (!bw) { this.bigWaveProgress = 0; this.bigWavePocketX = null; return; }
     bw.ageMs += dtMs;
     const k = Math.min(1, bw.ageMs / bw.durMs);
-    bw.frontZ = bw.fromZ + (bw.toZ - bw.fromZ) * k;
     bw.env = Math.sin(k * Math.PI);                  // 0→1→0 부드러운 차오름·빠짐
     this.bigWaveProgress = k;
-    this.bigWaveCrestZ = bw.frontZ;
+    this.bigWavePocketX = bw.pocketX;
     if (k >= 1) this.bigWave = null;
   }
 
+  // 포켓 x 중심으로만 솟는 덩어리(전폭 벽이 아니라 한쪽). z는 플레이 깊이(≈6) 근처에 완만히.
   _bigWaveHeight(x, z) {
     const bw = this.bigWave;
-    const d = z - bw.frontZ;
-    return bw.amp * bw.env * Math.exp(-(d * d) / (bw.width * bw.width));
+    const dx = x - bw.pocketX;
+    const dz = z - 6;
+    const lateral = Math.exp(-(dx * dx) / (bw.pocketW * bw.pocketW));
+    const depth   = Math.exp(-(dz * dz) / (7 * 7));
+    return bw.amp * bw.env * lateral * depth;
   }
 
   _moveClouds() {

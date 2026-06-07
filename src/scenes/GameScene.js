@@ -118,6 +118,7 @@ export default class GameScene extends Phaser.Scene {
     this.stageGimmickManager.update(dt);
     this.bigWaveManager.update(dt);   // 큰 파도(예고→통과→마루 타기 보상) — stageGimmicks.balanceDrift에 흔들림 가산
     this.barrelManager.update(dt);    // 배럴(튜브 라이딩) — 포켓 커밋 유지 시 대점수, 피격 시 붕괴
+    this.stageGimmicks.barrelTucked = this.barrelManager.tubed;   // 배럴에 ↓로 박힌 동안 서퍼 세로 고정(제자리 튜브)
     this.player.update(dt, this.cursors, this.spaceKey, this.stageGimmicks);
     if (this.player.trickLanded)       this._onTrick();
     else if (this.player.trickBotched) this._onTrickBotch();

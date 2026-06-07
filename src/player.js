@@ -144,7 +144,7 @@ export class Player {
     if (this.staggerMs > 0) this.staggerMs = Math.max(0, this.staggerMs - deltaMs);
 
     this._handleMove(dt, cursors);
-    this._handleRide(dt, cursors);                                   // ↑/↓ 파도 면 세로 라이딩(핵심 동사)
+    this._handleRide(dt, cursors, environment);                     // ↑/↓ 파도 면 세로 라이딩(핵심 동사)
     if (BALANCE_ON) this._handleBalance(dt, cursors, environment);   // [실험] 끄면 균형/와이프아웃 없음(tilt 0 유지)
     this._handleTrick(dt, cursors);
     this._handleDive(dt, cursors);
@@ -170,8 +170,9 @@ export class Player {
   // ↑/↓ = 파도 면 세로 라이딩. 위(마루·장애물이 솟는 곳)로 오를수록 빠르고 위험·고배율, 아래(어깨)는 안전·저점수.
   // 약한 중력이 늘 안전한 아래로 흘려보내므로, 점수를 노리면 ↑로 위험 구간에 올라타 버텨야 한다(능동적 커밋).
   // 공중(점프)·휘청 중엔 면을 떠나므로 baseY를 고정 — 착지·회복 후 그 자리에서 라이딩 재개.
-  _handleRide(dt, cursors) {
+  _handleRide(dt, cursors, environment = null) {
     if (!this.isGrounded || this.staggerMs > 0) return;
+    if (environment?.barrelTucked) { this.vRide = 0; return; }   // 배럴에 박혀 유지 — 세로 위치 고정(↓는 튜브 박기 입력)
     let dir = 0;
     if (cursors.up?.isDown)   dir -= 1;   // 마루(위)로 climb — 위험·고배율
     if (cursors.down?.isDown) dir += 1;   // 어깨(아래)로 — 안전·저배율

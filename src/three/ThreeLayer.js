@@ -42,6 +42,7 @@ export class ThreeLayer {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(58, w / h, 0.1, 1000);
     this._camZ = 5;                        // 부드럽게 추종할 서퍼 깊이(z)의 평활값
+    this._barrelCam = 0;                   // 배럴에 박힌 동안 카메라 당김(0~1) 평활값
     this.camera.position.set(-6, 4.4, 17);
     this.camera.lookAt(-6, 1.2, 1);
 
@@ -100,9 +101,14 @@ export class ThreeLayer {
     const jumpLift = Math.max(0, state?.player?.jumpOffset ?? 0) / 90 * 0.22;
     const o = this.fx.getOffset(dtMs);
 
-    this.camera.position.set(sx + o.x, 4.4 + jumpLift + o.y, 16.8 + this._camZ * 0.16);
+    // 배럴에 박혀 있을 때 카메라를 살짝 당겨 '튜브가 감싸는' 느낌(제자리 박힘 강조).
+    const barrelTgt = state?.barrel?.tubed ? 1 : 0;
+    this._barrelCam += (barrelTgt - this._barrelCam) * Math.min(1, 0.1 * (dtMs / 16.667));
+    const bc = this._barrelCam;
+
+    this.camera.position.set(sx + o.x, 4.4 + jumpLift + o.y - bc * 0.9, 16.8 + this._camZ * 0.16 - bc * 3.2);
     this.camera.up.set(o.roll, 1, 0);
-    this.camera.lookAt(sx, 1.2 + sy * 0.12, this._camZ - 4.5);
+    this.camera.lookAt(sx, 1.2 + sy * 0.12 + bc * 0.25, this._camZ - 4.5);
 
     // 속도감 — 파도 면을 내려탈수록(포켓) FOV를 살짝 넓혀 '확 빨라지는' 러시를 준다.
     const speed = state?.player?.speed ?? 0;
