@@ -182,6 +182,15 @@ const OBSTACLE_COLOR = {
   [ObstacleType.LIGHTNING]:   0xffe14d,
 };
 
+const OBSTACLE_TEXTURE_KEY = {
+  [ObstacleType.FLYING_FISH]: 'obstacle-flying-fish',
+  [ObstacleType.SHARK]:       'obstacle-shark',
+  [ObstacleType.WHALE]:       'obstacle-whale',
+  [ObstacleType.JELLYFISH]:   'obstacle-jellyfish',
+  [ObstacleType.OCTOPUS]:     'obstacle-octopus',
+  [ObstacleType.LIGHTNING]:   'obstacle-lightning',
+};
+
 // 분출 단계 머신: RISE(솟구침) → ACTIVE(노출) → SINK(가라앉음) → done.
 // ERUPT_X 열에서 제자리 분출(x 고정).
 class ObstacleInstance {
@@ -255,6 +264,8 @@ class ObstacleInstance {
   }
 
   _buildVisual() {
+    if (this._buildPixelSprite()) return;
+
     switch (this.type) {
       case ObstacleType.FLYING_FISH: this._buildFlyingFish(); break;
       case ObstacleType.SHARK:       this._buildShark();      break;
@@ -264,6 +275,21 @@ class ObstacleInstance {
       case ObstacleType.LIGHTNING:   this._buildLightning();  break;
       default:                       this._buildFallback();   break;
     }
+  }
+
+  _buildPixelSprite() {
+    const key = OBSTACLE_TEXTURE_KEY[this.type];
+    if (!key || !this.scene.textures.exists(key)) return false;
+
+    const img = this.scene.add.image(0, 0, key)
+      .setOrigin(0.5)
+      .setDisplaySize(this.hitboxW * 1.08, this.hitboxH * 1.22);
+
+    this.parts.sprite = img;
+    this.parts.spriteBaseScaleX = img.scaleX;
+    this.parts.spriteBaseScaleY = img.scaleY;
+    this.visual.add(img);
+    return true;
   }
 
   _buildFlyingFish() {
@@ -374,7 +400,14 @@ class ObstacleInstance {
 
   _animateVisual() {
     const t = this.ageMs / 1000;
-    if (this.type === ObstacleType.FLYING_FISH) {
+    if (this.parts.sprite) {
+      this.parts.sprite.setScale(
+        this.parts.spriteBaseScaleX * (1 + Math.sin(t * 8) * 0.025),
+        this.parts.spriteBaseScaleY * (1 + Math.cos(t * 7) * 0.025),
+      );
+      if (this.type === ObstacleType.FLYING_FISH) this.visual.y = this.y + Math.sin(t * 9) * 5;
+      if (this.type === ObstacleType.LIGHTNING) this.parts.sprite.alpha = 0.78 + Math.random() * 0.22;
+    } else if (this.type === ObstacleType.FLYING_FISH) {
       this.visual.y = this.y + Math.sin(t * 9) * 5;
       this.parts.wingTop.rotation = Math.sin(t * 13) * 0.18;
       this.parts.wingBot.rotation = -Math.sin(t * 13) * 0.12;
@@ -470,11 +503,12 @@ export class ObstacleManager {
   // 그레이즈/점프 통과 감지 + 안전 통과 시점을 resolvedQueue에 적재
   _trackPlayer(obs, player) {
     if (obs.collidable) {
-      const hb = player.hitbox;
+      // 그레이즈도 충돌과 같은 레인(파도면 baseY) 기준 — 점프 중 위쪽 다른 레인을
+      // 훑고 지나갈 때 생기던 '허깨비 아슬아슬'을 막는다(checkCollision 주석 참고).
+      const hb = player.groundHitbox;
       if (!this._aabb(hb, obs.hitbox) && this._aabb(hb, obs.grazebox)) obs.grazed = true;
       // 퍼펙트 점프는 '점프로 넘는' 장애물에만 — 고래·번개(move)는 점프로 못 넘음
-      const vNear = Math.abs(obs.targetY - player.baseY) < obs.hitboxH / 2 + 60;
-      if (obs.avoidMode === 'jump' && !player.isGrounded && vNear) obs.jumpedOver = true;
+      if (this._isJumpClear(obs, player)) obs.jumpedOver = true;
     }
     if (!obs.resolved && !obs.hitByPlayer && obs.isResolved()) {
       obs.resolved = true;
@@ -530,15 +564,32 @@ export class ObstacleManager {
     this.obstacles = this.obstacles.filter(o => o.active);
   }
 
-  // move 장애물은 baseY(점프 무시) 박스로 판정 → 점프로 못 피하고 위치 이동을 강제.
-  // jump 장애물은 실제 박스(점프 높이 반영)로 판정 → 점프로 넘을 수 있음.
   checkCollision(player) {
     for (const obs of this.obstacles) {
       if (!obs.collidable || obs.hitByPlayer) continue;
-      const pb = obs.avoidMode === 'move' ? player.groundHitbox : player.hitbox;
-      if (this._aabb(pb, obs.hitbox)) { obs.hitByPlayer = true; return obs; }
+      if (this._hitsPlayer(obs, player)) { obs.hitByPlayer = true; return obs; }
     }
     return null;
+  }
+
+  // 충돌 판정. 레인(파도면 baseY = 3D 깊이)이 겹쳐야 하며, 'jump' 장애물은 점프 높이로 넘는다.
+  // 핵심: 레인=깊이(z)와 점프=높이(y)는 3D에서 직교축이다. 예전엔 점프를 baseY에 합산한
+  // player.hitbox(y) 한 축으로 판정해, 점프하면 player.y가 '위쪽 다른 레인' 장애물의 y를
+  // 훑고 지나가며 "안 덮쳤는데 맞았다"가 났다. 이제 레인 겹침은 groundHitbox(baseY)로만 보고,
+  // 점프는 '장애물을 넘었는지' 높이 게이트로 분리한다.
+  _hitsPlayer(obs, player) {
+    if (!this._aabb(player.groundHitbox, obs.hitbox)) return false;   // 다른 레인이면 안전
+    if (obs.avoidMode === 'move') return true;                        // 점프 무효(고래·번개) — 레인 겹치면 피격
+    if (obs.jumpedOver) return false;                                  // 퍼펙트 점프로 넘긴 장애물은 재충돌 없음
+    return !this._isJumpClear(obs, player);                            // 충분히 못 떴으면 피격
+  }
+
+  _isJumpClear(obs, player) {
+    if (obs.avoidMode !== 'jump' || player.isGrounded) return false;
+    const vNear = Math.abs(obs.targetY - player.baseY) < obs.hitboxH / 2 + 60;
+    if (!vNear) return false;
+    const clearH = (player.hitboxH + obs.hitbox.h) / 2;                // 넘는 데 필요한 점프 높이(px)
+    return player.jumpOffset > clearH;
   }
 
   // 이번 프레임에 안전 통과로 확정된 장애물들(점수 처리용). 큐를 비운다.

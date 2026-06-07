@@ -1,6 +1,24 @@
 import * as THREE from 'three';
 import { WATER_Y, gameX2WorldX, rideY2WorldZ, disposeObject } from './bridge.js';
 
+const PIXEL_ASSETS = Object.freeze({
+  FLYING_FISH: '/img/obstacle-flying-fish.png',
+  SHARK:       '/img/obstacle-shark.png',
+  WHALE:       '/img/obstacle-whale.png',
+  JELLYFISH:   '/img/obstacle-jellyfish.png',
+  OCTOPUS:     '/img/obstacle-octopus.png',
+  LIGHTNING:   '/img/obstacle-lightning.png',
+});
+
+const PIXEL_SPRITE_SCALE = Object.freeze({
+  FLYING_FISH: [1.95, 1.05],
+  SHARK:       [2.45, 1.15],
+  WHALE:       [3.95, 2.05],
+  JELLYFISH:   [1.35, 1.55],
+  OCTOPUS:     [1.8, 1.65],
+  LIGHTNING:   [1.05, 3.4],
+});
+
 // 장애물 메시 6종 (저폴리). 모두 base가 그룹 원점=수면에 — reveal을 scale.y에 실어 분출.
 // 게임 ObstacleInstance ↔ 메시를 Map으로 동기화. 충돌은 obstacle.js의 2D AABB가 담당.
 export class Obstacles {
@@ -8,9 +26,54 @@ export class Obstacles {
     this.scene = scene;
     this.meshes = new Map();   // 게임 장애물 인스턴스 → Three 메시
     this._seen = new Set();
+    this._loader = new THREE.TextureLoader();
+    this._textures = new Map();
+  }
+
+  _texture(type) {
+    const url = PIXEL_ASSETS[type];
+    if (!url) return null;
+    if (!this._textures.has(type)) {
+      const texture = this._loader.load(url);
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      this._textures.set(type, texture);
+    }
+    return this._textures.get(type);
+  }
+
+  _makePixelSprite(type) {
+    const texture = this._texture(type);
+    if (!texture) return null;
+
+    const g = new THREE.Group();
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    const [w, h] = PIXEL_SPRITE_SCALE[type] ?? [1.5, 1.2];
+    sprite.scale.set(w, h, 1);
+    sprite.position.y = h * 0.45;
+    // 물 위에 그린다: 반투명 파도 레이어(JEJU_WAVE_LAYERS, depthWrite:false, renderOrder 0)는
+    // depth를 안 써서, depthWrite:false인 스프라이트가 페인터 정렬상 파도 뒤로 밀려 청록색에
+    // 덮여 '물 속에 잠긴 듯' 보였다. renderOrder를 올려 파도보다 나중에(=위에) 그린다.
+    // depthTest는 그대로 둬(true) 불투명 서퍼와의 앞뒤 가림은 유지.
+    sprite.renderOrder = 10;
+    g.add(sprite);
+    // sync()에서 분출을 scale.y 압착 대신 솟구침(translate)+페이드로 처리하기 위한 표식.
+    g.userData.isPixelSprite = true;
+    g.userData.spriteH       = h;          // 솟구침 거리 = 스프라이트 한 키
+    g.userData.spriteMat     = material;   // 분출 페이드용
+    return g;
   }
 
   _make(type) {
+    const pixel = this._makePixelSprite(type);
+    if (pixel) return pixel;
+
     const g = new THREE.Group();
     const L = (geo, color, opts = {}) =>
       new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts }));
@@ -104,9 +167,24 @@ export class Obstacles {
         }
         const reveal = obs.reveal ?? 1;
         const vs = obs.visualScale ?? 1;   // 비주얼↔충돌 크기 매핑(OBSTACLE_META)
-        mesh.position.set(gameX2WorldX(obs.x), WATER_Y, rideY2WorldZ(obs.targetY));
-        mesh.scale.set(vs, vs * Math.max(0.08, reveal), vs);   // reveal은 y에만(분출), vs는 전체 크기
-        mesh.visible = reveal > 0.02;
+        const wx = gameX2WorldX(obs.x);
+        const wz = rideY2WorldZ(obs.targetY);
+        if (mesh.userData.isPixelSprite) {
+          // 빌보드 스프라이트는 scale.y로 누르면 납작해져 '물에 깔린' 것처럼 보인다.
+          // 크기는 그대로(uniform vs) 두고 수면 아래→위로 솟구쳐 튀어오르게 한다
+          // (번개 등 fromAbove는 위→아래). 솟는 동안 알파로 페이드해 허공 팝인을 가린다.
+          const dir  = obs.fromAbove ? 1 : -1;
+          const rise = (1 - reveal) * mesh.userData.spriteH * dir;
+          mesh.position.set(wx, WATER_Y + rise, wz);
+          mesh.scale.set(vs, vs, vs);
+          mesh.userData.spriteMat.opacity = Math.min(1, reveal * 2);
+          mesh.visible = reveal > 0.02;
+        } else {
+          // 저폴리 메시는 바닥(=수면)에서 scale.y로 자라며 솟는다(기존 분출).
+          mesh.position.set(wx, WATER_Y, wz);
+          mesh.scale.set(vs, vs * Math.max(0.08, reveal), vs);   // reveal은 y에만(분출), vs는 전체 크기
+          mesh.visible = reveal > 0.02;
+        }
         seen.add(obs);
       }
     }
@@ -119,5 +197,10 @@ export class Obstacles {
     }
   }
 
-  dispose() { this.meshes.clear(); }
+  dispose() {
+    for (const mesh of this.meshes.values()) disposeObject(mesh);
+    this.meshes.clear();
+    for (const texture of this._textures.values()) texture.dispose();
+    this._textures.clear();
+  }
 }

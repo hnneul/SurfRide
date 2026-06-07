@@ -85,6 +85,7 @@ export class ThreeLayer {
   destroy() {
     window.removeEventListener('resize', this._onResize);
     disposeObject(this.scene);
+    this.world.dispose?.();
     this.obstacles.dispose();
     this.signals.dispose();
     this.goldenFish.dispose();
