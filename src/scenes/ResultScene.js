@@ -3,6 +3,8 @@ import { LOGICAL_WIDTH, LOGICAL_HEIGHT } from '../constants.js';
 import { ScoreEvent } from '../score.js';
 import { OBSTACLE_META } from '../obstacle.js';
 import { STAGES } from '../stages.js';
+import { submitScore } from '../ranking.js';
+import { ensureNickname } from '../ui/rankingModal.js';
 
 /** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
 
@@ -65,8 +67,19 @@ export default class ResultScene extends Phaser.Scene {
     this._renderButtons(cx);
     this._installSkip();
     this._animate();
+    this._submitToLeaderboard();   // 온라인 랭킹 자동 등록(백그라운드)
 
     this.events.once('shutdown', this._teardown, this);
+  }
+
+  // 결과 화면 진입 시 점수를 Supabase 랭킹에 등록. 최초 1회만 닉네임 입력 다이얼로그가 뜨고,
+  // 이후엔 저장된 닉네임으로 조용히 등록된다. 실패는 게임 흐름에 영향 없음(throw 안 함).
+  async _submitToLeaderboard() {
+    try {
+      const nick = await ensureNickname();           // 닉네임 없으면 최초 1회 입력 받음
+      if (!nick || !this.sys?.isActive()) return;     // 입력 취소 / 씬 이탈 시 등록 생략
+      await submitScore(this.stageIndex + 1, this.summary?.total ?? 0);
+    } catch { /* 랭킹 등록 실패 무시 */ }
   }
 
   // 추적 헬퍼 — 모든 트윈/타이머는 반드시 이 배열을 거친다
