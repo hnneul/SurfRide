@@ -18,10 +18,11 @@ export class BarrelManager {
   constructor(scene) {
     this.scene = scene;
     const dur = scene.obstacleManager._stageDuration;
-    // 1스테이지 2회(앞 1/3은 학습용으로 비우고, 큰 파도 0.34·0.70과 안 겹치게 그 사이·뒤에 배치),
-    // 그 외 스테이지는 중반 1회. 추후 테마별 확장. 큰 파도와 배럴이 번갈아 오는 리듬.
+    // 1스테이지(45s)는 큰 파도 2개(0.34·0.70)가 각 ~7s를 차지해, 깨끗한 빈 구간은 그 사이(0.52)
+    // 하나뿐 → 배럴 1회를 거기 배치(겹침 없음). 큰 파도가 없는 다른 스테이지는 중반 1회.
+    // (배럴을 늘리려면 큰 파도를 솎거나 배럴 창을 줄여야 함 — bigWaves.js와 함께 튜닝.)
     this.times = scene.stageIndex === 0
-      ? [dur * 0.52, dur * 0.84]
+      ? [dur * 0.47]
       : [dur * 0.55];
     this.idx = 0;
 
