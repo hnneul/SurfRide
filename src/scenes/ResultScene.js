@@ -95,6 +95,7 @@ export default class ResultScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setDepth(-20);
       bg.setScale(Math.max(LOGICAL_WIDTH / bg.width, LOGICAL_HEIGHT / bg.height));
+      this._gameOverBg = bg;
 
       this.add.graphics().setDepth(-19)
         .fillStyle(0x01081a, 0.34).fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT)
@@ -235,25 +236,15 @@ export default class ResultScene extends Phaser.Scene {
     const title = this.add.text(cx, y, 'WIPEOUT!', {
       fontSize: '42px', fontFamily: 'sans-serif', color: '#89f8ff', fontStyle: 'bold',
       shadow: { offsetX: 0, offsetY: 0, color: '#007dff', blur: 14, fill: true },
-    }).setOrigin(0.5).setAlpha(0).setScale(0.4);
-    this._t(this.tweens.add({ targets: title, alpha: 1, scale: 1, duration: 300, ease: 'Back.Out' }));
+    }).setOrigin(0.5);
     this._cause.push({ obj: title, apply: () => title.setAlpha(1).setScale(1) });
 
-    // 보드(타이틀 우측) 한 바퀴 회전
+    // 보드(타이틀 우측) — 게임오버 첫 화면은 정적으로 등장
     const bx = cx + 286, by = y;
     const boardBody = this.add.ellipse(0, 0, 110, 26, 0xffcc66).setStrokeStyle(3, 0xffffff, 0.85);
     const stripe    = this.add.rectangle(0, 0, 110, 6, 0xff8a3d);
     const board     = this.add.container(bx, by, [boardBody, stripe]);
-    this._t(this.tweens.add({ targets: board, angle: 360, duration: 760, ease: 'Cubic.Out' }));
-    this._cause.push({ obj: board, apply: () => { board.angle = 360; } });
-
-    // 물보라 링(퍼지며 사라짐) — 트윈과 오브젝트 모두 추적해 스킵 시 정리
-    const ring = this.add.circle(bx, by + 6, 12, 0xbfe7ff, 0.55);
-    this._t(this.tweens.add({
-      targets: ring, scale: { from: 0.4, to: 3 }, alpha: 0, duration: 640, ease: 'Quad.Out',
-      onComplete: () => { if (!this._settled && this.sys.isActive()) ring.destroy(); },
-    }));
-    this._cause.push({ obj: ring, apply: () => ring.destroy() });
+    this._cause.push({ obj: board, apply: () => { board.angle = 0; } });
 
     this.add.text(cx, y + 48, '← → 로 균형을 잡으세요', {
       fontSize: '22px', fontFamily: 'sans-serif', color: '#b8d9ff',
@@ -268,8 +259,7 @@ export default class ResultScene extends Phaser.Scene {
     const big = this.add.text(cx, y, `${name}!`, {
       fontSize: '42px', fontFamily: 'sans-serif', color: '#89f8ff', fontStyle: 'bold',
       shadow: { offsetX: 0, offsetY: 0, color: '#007dff', blur: 14, fill: true },
-    }).setOrigin(0.5).setAlpha(0).setScale(0.4);
-    this._t(this.tweens.add({ targets: big, alpha: 1, scale: 1, duration: 300, ease: 'Back.Out' }));
+    }).setOrigin(0.5);
     this._cause.push({ obj: big, apply: () => big.setAlpha(1).setScale(1) });
 
     const QUIPS = {
@@ -283,9 +273,8 @@ export default class ResultScene extends Phaser.Scene {
     const quip = QUIPS[this.hitObstacle?.type] ?? `${name}에 부딪혔어요`;
     const sub  = this.add.text(cx, y + 48, quip, {
       fontSize: '22px', fontFamily: 'sans-serif', color: '#b8d9ff',
-    }).setOrigin(0.5).setAlpha(0);
-    this._t(this.tweens.add({ targets: sub, alpha: 1, y: y + 42, duration: 240, delay: 180, ease: 'Quad.Out' }));
-    this._cause.push({ obj: sub, apply: () => sub.setAlpha(1).setY(y + 42) });
+    }).setOrigin(0.5);
+    this._cause.push({ obj: sub, apply: () => sub.setAlpha(1).setY(y + 48) });
   }
 
   // ─── 데이터 모델(순수) ────────────────────────────────────────────────────────
@@ -407,6 +396,12 @@ export default class ResultScene extends Phaser.Scene {
   // 체인이 '순서/등장 템포'를, 각 addCounter가 '숫자 모션'을 담당.
   // 한 행: alpha(140) + completeDelay(120) = 260ms == 행 카운터(260ms) → 숫자가 등장보다 뒤처지지 않음.
   _animate() {
+    if (!this.cleared) {
+      this._d(this.time.delayedCall(200, () => this._animateGameOverScores()));
+      this._d(this.time.delayedCall(300, () => this._shakeGameOverLogo()));
+      return;
+    }
+
     const rowTweens = this.rows.map(row => ({
       targets: [row.labelObj, row.valueObj],
       alpha: { from: 0, to: 1 }, duration: 140, completeDelay: 120,
@@ -425,10 +420,41 @@ export default class ResultScene extends Phaser.Scene {
     else startRows();
   }
 
-  _countRow(row) {
+  _animateGameOverScores() {
+    if (this._settled || !this.sys.isActive()) return;
+
+    const rowGap = 78;
+    const rowDuration = 95;
+    this.rows.forEach((row, i) => {
+      this._d(this.time.delayedCall(i * rowGap, () => {
+        if (this._settled || !this.sys.isActive()) return;
+        row.labelObj.y = row.labelObj.getData('baseY');
+        row.valueObj.y = row.valueObj.getData('baseY');
+        this._t(this.tweens.add({
+          targets: [row.labelObj, row.valueObj],
+          alpha: 1,
+          duration: rowDuration,
+          ease: 'Quad.Out',
+          onStart: () => this._countRow(row, 220),
+          onComplete: () => {
+            row.labelObj.setAlpha(1);
+            row.valueObj.setAlpha(1);
+          },
+        }));
+      }));
+    });
+
+    const totalDelay = this.rows.length * rowGap + 70;
+    this._d(this.time.delayedCall(totalDelay, () => {
+      if (this._settled || !this.sys.isActive()) return;
+      this._startTotal();
+    }));
+  }
+
+  _countRow(row, duration = 260) {
     if (!row.value) { row.valueObj.setText('0'); return; }   // 0점 행은 즉시 표시, 팝 없음
     this._t(this.tweens.addCounter({
-      from: 0, to: row.value, duration: 260, ease: 'Cubic.Out',
+      from: 0, to: row.value, duration, ease: 'Cubic.Out',
       onUpdate: t => { if (this._settled || !this.sys.isActive()) return; row.valueObj.setText(Math.round(t.getValue()).toLocaleString()); },
       onComplete: () => {
         if (this._settled || !this.sys.isActive()) return;
@@ -463,6 +489,24 @@ export default class ResultScene extends Phaser.Scene {
     this._t(this.tweens.add({
       targets: o, scale: { from: 1, to: peak }, duration: 90, yoyo: true, ease: 'Quad.Out',
       onComplete: () => o.setScale(1),
+    }));
+  }
+
+  _shakeGameOverLogo() {
+    if (this.cleared || !this._gameOverBg || this._settled || !this.sys.isActive()) return;
+    const bg = this._gameOverBg;
+    const baseX = LOGICAL_WIDTH / 2;
+    const baseY = LOGICAL_HEIGHT / 2;
+    this._t(this.tweens.add({
+      targets: bg,
+      x: { from: baseX - 3, to: baseX + 3 },
+      y: { from: baseY - 1, to: baseY + 1 },
+      angle: { from: -0.08, to: 0.08 },
+      duration: 42,
+      yoyo: true,
+      repeat: 2,
+      ease: 'Sine.InOut',
+      onComplete: () => bg.setPosition(baseX, baseY).setAngle(0),
     }));
   }
 
