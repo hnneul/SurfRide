@@ -4,14 +4,16 @@ import { zoneMultiplierForY } from './constants.js';
 
 export const SCORE = Object.freeze({
   SURVIVAL_PER_SEC:  10,
-  DODGE:            100,
-  NEAR_MISS:        150,   // 아슬아슬 회피 보너스
+  DODGE:             40,   // 안전 회피(소액) — 콤보 안 쌓임
+  NEAR_MISS:        220,   // 아슬아슬 회피 — 콤보 쌓는 핵심 보상(리스크-리워드)
   PERFECT_JUMP:     200,
   TRICK_PER_HALF:   140,   // 에어 트릭: 완성한 180°(반바퀴)당 점수
   DANGER_PER_SEC:    30,   // 위험 구간 체류 시 초당 보너스
   GOLDEN_FISH:      500,   // 황금 물고기 획득
   WAVE_RIDE_PER_SEC: 70,   // 큰 파도 마루를 잘 타는 동안 초당(파도 타기 보상)
   BIG_WAVE:         400,   // 큰 파도 성공 마무리 보너스(품질 비례)
+  BARREL_PER_SEC:    90,   // 배럴(튜브) 안에서 버티는 동안 초당
+  BARREL_MADE:      700,   // 배럴 '메이드 잇'(끝까지 버팀) 마무리 보너스(품질 비례)
   BALANCE_CLUTCH:   130,   // 균형이 무너지기 직전 회복(위험-보상)
   STAGE_CLEAR:     1000,
 });
@@ -36,6 +38,7 @@ export const ScoreEvent = Object.freeze({
   DANGER_LANE:    'DANGER_LANE',
   GOLDEN_FISH:    'GOLDEN_FISH',
   WAVE_RIDE:      'WAVE_RIDE',
+  BARREL:         'BARREL',
   BALANCE_CLUTCH: 'BALANCE_CLUTCH',
   WEATHER_BONUS:  'WEATHER_BONUS',
   STAGE_CLEAR:    'STAGE_CLEAR',
@@ -63,6 +66,7 @@ export class ScoreManager {
     this.dangerSeconds       = 0;    // 위험 구간 누적 체류 시간(초)
     this.goldenFish          = 0;    // 황금 물고기 획득 수
     this.bigWaves            = 0;    // 큰 파도 성공적으로 탄 수
+    this.barrels             = 0;    // 배럴(튜브) '메이드 잇' 성공 수
     this.clutches            = 0;    // 균형 회복(클러치) 수
     this.breakdown = {
       [ScoreEvent.SURVIVAL]:      0,
@@ -74,6 +78,7 @@ export class ScoreManager {
       [ScoreEvent.DANGER_LANE]:   0,
       [ScoreEvent.GOLDEN_FISH]:   0,
       [ScoreEvent.WAVE_RIDE]:     0,
+      [ScoreEvent.BARREL]:        0,
       [ScoreEvent.BALANCE_CLUTCH]:0,
       [ScoreEvent.WEATHER_BONUS]: 0,
       [ScoreEvent.STAGE_CLEAR]:   0,
@@ -98,20 +103,24 @@ export class ScoreManager {
   }
 
   onDodge(y) {
+    // 안전 회피는 점수만 — 콤보는 아슬아슬(near-miss)·퍼펙트 점프로만 쌓인다(리스크-리워드).
     this._add(ScoreEvent.DODGE, this._applyMultipliers(SCORE.DODGE, y));
-    this.combo++;
-    this.maxCombo           = Math.max(this.maxCombo, this.combo);
-    this.maxComboMultiplier = Math.max(this.maxComboMultiplier, this._comboMultiplier());
   }
 
   onNearMiss(y) {
     this._add(ScoreEvent.NEAR_MISS, this._applyMultipliers(SCORE.NEAR_MISS, y));
     this.nearMisses++;
+    this.combo++;   // 아슬아슬하게 cut해야 콤보가 쌓인다
+    this.maxCombo           = Math.max(this.maxCombo, this.combo);
+    this.maxComboMultiplier = Math.max(this.maxComboMultiplier, this._comboMultiplier());
   }
 
   onPerfectJump(y) {
     this._add(ScoreEvent.PERFECT_JUMP, this._applyMultipliers(SCORE.PERFECT_JUMP, y));
     this.perfectJumps++;
+    this.combo++;   // 깔끔한 점프 회피도 콤보로
+    this.maxCombo           = Math.max(this.maxCombo, this.combo);
+    this.maxComboMultiplier = Math.max(this.maxComboMultiplier, this._comboMultiplier());
   }
 
   // 에어 트릭 클린 랜딩: 완성한 반바퀴(halfSpins) 수만큼 점수 + 콤보 적립
@@ -136,6 +145,22 @@ export class ScoreManager {
     const pts = this._applyMultipliers(Math.round(SCORE.BIG_WAVE * (0.5 + quality)), y);
     this._add(ScoreEvent.WAVE_RIDE, pts);
     this.bigWaves++;
+    this.combo += 2;
+    this.maxCombo           = Math.max(this.maxCombo, this.combo);
+    this.maxComboMultiplier = Math.max(this.maxComboMultiplier, this._comboMultiplier());
+    return pts;
+  }
+
+  // 배럴(튜브) 안에서 버티는 동안 초당 적립(연속 보상). combo 배율 적용.
+  onBarrelTick(y) {
+    this._add(ScoreEvent.BARREL, this._applyMultipliers(SCORE.BARREL_PER_SEC, y));
+  }
+
+  // 배럴 '메이드 잇' — 끝까지 튜브를 버텨냄. 품질(0~1, 얼마나 오래 튜브에 있었나) 비례. 콤보 +2.
+  onBarrelMade(quality, y) {
+    const pts = this._applyMultipliers(Math.round(SCORE.BARREL_MADE * (0.5 + quality)), y);
+    this._add(ScoreEvent.BARREL, pts);
+    this.barrels++;
     this.combo += 2;
     this.maxCombo           = Math.max(this.maxCombo, this.combo);
     this.maxComboMultiplier = Math.max(this.maxComboMultiplier, this._comboMultiplier());
@@ -168,6 +193,8 @@ export class ScoreManager {
   _applyMultipliers(base, y) {
     return Math.round(base * zoneMultiplierForY(y) * this._comboMultiplier());
   }
+
+  get comboMultiplier() { return this._comboMultiplier(); }
 
   _comboMultiplier() {
     let mul = 1.0;
@@ -204,6 +231,7 @@ export class ScoreManager {
       dangerSeconds:      this.dangerSeconds,
       goldenFish:         this.goldenFish,
       bigWaves:           this.bigWaves,
+      barrels:            this.barrels,
       clutches:           this.clutches,
       breakdown:          { ...this.breakdown },
     };

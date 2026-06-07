@@ -278,8 +278,7 @@ class ObstacleInstance {
     const f = Math.min(1, this.ageMs / TRAVEL_MS);
     this.targetY = RIDE_TOP_Y + (RIDE_BOTTOM_Y - RIDE_TOP_Y) * f;       // 먼 수평선 → 근경(다가옴)
     this.reveal  = Math.min(1, this.ageMs / FADE_MS);                   // 등장 페이드인
-    if (this.targetY > RIDE_FIXED_Y + this.hitboxH) this.passed = true; // 서퍼 깊이 통과 → 회피 확정
-    if (f >= 1) this.active = false;                                    // 근경 끝 → 제거
+    if (f >= 1) { this.active = false; this.passed = true; }            // 끝까지 쓸려가면 회피 확정(맨 아래 라이딩 보정)
     this._applyVisual();
     this._animateVisual();
   }
@@ -519,6 +518,8 @@ export class ObstacleManager {
       // 퍼펙트 점프는 '점프로 넘는' 장애물에만 — 고래·번개(move)는 점프로 못 넘음
       if (this._isJumpClear(obs, player)) obs.jumpedOver = true;
     }
+    // 서퍼의 '현재' 깊이(baseY)를 지나치면 회피 확정 — 라이딩 높이에 맞춰 판정(고정선 X).
+    if (!obs.passed && obs.targetY > player.baseY + obs.hitboxH * 0.5) obs.passed = true;
     if (!obs.resolved && !obs.hitByPlayer && obs.isResolved()) {
       obs.resolved = true;
       this._resolvedQueue.push(obs);

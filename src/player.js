@@ -1,5 +1,5 @@
 import {
-  ERUPT_X, RIDE_TOP_Y, RIDE_BOTTOM_Y, RIDE_FIXED_Y, LATERAL_RANGE,
+  ERUPT_X, RIDE_TOP_Y, RIDE_BOTTOM_Y, RIDE_FIXED_Y, LATERAL_RANGE, BALANCE_ON, RIDE,
   isDangerY, zoneMultiplierForY, BALANCE, TRICK, DIVE, MAX_HEALTH, HIT_IFRAME_MS,
 } from './constants.js';
 
@@ -66,6 +66,8 @@ export class Player {
     this.y          = this.baseY;
     this.vSteer     = 0;
     this.vLateral   = 0;   // 좌우 카빙 속도(프로토)
+    this.vRide      = 0;   // 파도 면 세로 라이딩 속도(px/s, +아래로)
+    this.speed      = 0;   // 라이딩 속도감 0(아래·안전)~1(위·위험·빠름) — 연출/카메라용
     this.jumpOffset = 0;   // 파도 면 위로 떠오른 높이 (>=0)
     this.jumpVel    = 0;
     this.isJumping  = false;
@@ -142,7 +144,8 @@ export class Player {
     if (this.staggerMs > 0) this.staggerMs = Math.max(0, this.staggerMs - deltaMs);
 
     this._handleMove(dt, cursors);
-    this._handleBalance(dt, cursors, environment);
+    this._handleRide(dt, cursors);                                   // ↑/↓ 파도 면 세로 라이딩(핵심 동사)
+    if (BALANCE_ON) this._handleBalance(dt, cursors, environment);   // [실험] 끄면 균형/와이프아웃 없음(tilt 0 유지)
     this._handleTrick(dt, cursors);
     this._handleDive(dt, cursors);
     this._handleJump(dt, spaceKey, environment);
@@ -162,6 +165,26 @@ export class Player {
     this.vLateral = Phaser_clamp(this.vLateral, -LATERAL_MAX, LATERAL_MAX);
     this.x += this.vLateral * dt;
     this.x = Phaser_clamp(this.x, CENTER_X - LATERAL_RANGE, CENTER_X + LATERAL_RANGE);
+  }
+
+  // ↑/↓ = 파도 면 세로 라이딩. 위(마루·장애물이 솟는 곳)로 오를수록 빠르고 위험·고배율, 아래(어깨)는 안전·저점수.
+  // 약한 중력이 늘 안전한 아래로 흘려보내므로, 점수를 노리면 ↑로 위험 구간에 올라타 버텨야 한다(능동적 커밋).
+  // 공중(점프)·휘청 중엔 면을 떠나므로 baseY를 고정 — 착지·회복 후 그 자리에서 라이딩 재개.
+  _handleRide(dt, cursors) {
+    if (!this.isGrounded || this.staggerMs > 0) return;
+    let dir = 0;
+    if (cursors.up?.isDown)   dir -= 1;   // 마루(위)로 climb — 위험·고배율
+    if (cursors.down?.isDown) dir += 1;   // 어깨(아래)로 — 안전·저배율
+    this.vRide += RIDE.GRAVITY * dt;                      // 파도가 면 아래(안전)로 흘려보냄
+    if (dir !== 0) this.vRide += dir * RIDE.ACCEL * dt;
+    else           this.vRide -= this.vRide * Math.min(1, RIDE.DAMP * dt);
+    this.vRide = Phaser_clamp(this.vRide, -RIDE.MAX, RIDE.MAX);
+    this.baseY += this.vRide * dt;
+    if (this.baseY <= RIDE_TOP_Y)    { this.baseY = RIDE_TOP_Y;    if (this.vRide < 0) this.vRide = 0; }
+    if (this.baseY >= RIDE_BOTTOM_Y) { this.baseY = RIDE_BOTTOM_Y; if (this.vRide > 0) this.vRide = 0; }
+
+    const frac = (this.baseY - RIDE_TOP_Y) / (RIDE_BOTTOM_Y - RIDE_TOP_Y);
+    this.speed += ((1 - frac) - this.speed) * Math.min(1, 6 * dt);   // 위로 갈수록 빠름(속도감)
   }
 
   // ↑/↓ = 밸런스 보정. 드리프트가 계속 tilt를 밀고(상시 긴장), ↑/↓로 되민다. 한계 넘으면 와이프아웃.

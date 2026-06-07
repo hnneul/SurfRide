@@ -67,12 +67,26 @@ export const RIDE_TOP_Y    = LOGICAL_HEIGHT * 0.40;
 export const RIDE_BOTTOM_Y = LOGICAL_HEIGHT * 0.82;
 export const RIDE_SPAN     = RIDE_BOTTOM_Y - RIDE_TOP_Y;
 
-// 좌우 이동 체계: 서퍼·장애물은 고정 깊이(RIDE_FIXED_Y) 한 줄에서 x로만 겨룬다(좌우 회피).
-export const RIDE_FIXED_Y  = RIDE_TOP_Y + RIDE_SPAN * 0.50;   // 서퍼 고정 깊이(중앙) — 장애물이 여기로 다가옴
+// RIDE_FIXED_Y: 서퍼 시작 깊이(중앙) + 신호(텔레그래프) 표시 깊이. 라이딩으로 baseY는 위아래로 움직인다.
+export const RIDE_FIXED_Y  = RIDE_TOP_Y + RIDE_SPAN * 0.50;
 export const LATERAL_RANGE = 330;                             // 좌우 이동 폭(px, ERUPT_X 중심 ±)
 
-// 위험 구간(거친 바다) — 라이딩 면 하단부. 진입 시 ×1.5 + DANGER 보너스 + 연출
-export const DANGER_FRAC_START = 0.64;            // 라이딩 구간 내 시작 비율
+// 파도 면 세로 라이딩(↑/↓) — 관성 + 파도가 면 아래로 끌어내리는 약한 중력으로 '면을 타는' 감각.
+// 위(마루·장애물이 솟는 곳)로 갈수록 빠르고(speed) 위험·고배율(×1.5), 아래(어깨)는 안전·저점수.
+// 가만히 두면 중력이 안전한 아래로 흘려보내므로, 점수를 노리면 ↑로 위험 구간에 올라타 버텨야 한다.
+export const RIDE = Object.freeze({
+  ACCEL:   2000,   // ↑/↓ 입력 가속(px/s²)
+  MAX:     430,    // 최대 세로 속도(px/s)
+  DAMP:    7,      // 무입력 감쇠(/s)
+  GRAVITY: 340,    // 파도가 면 아래로 끌어내리는 약한 중력(px/s²)
+});
+
+// [실험] 밸런스(↑↓) 토글 — 라이딩 체계로 대체되어 기본 false. 되살리려면 true.
+export const BALANCE_ON = false;
+
+// 위험 구간 — 라이딩 면 '위쪽'(마루·수평선). 장애물이 솟는 곳이라 만나기까지 반응시간이 짧다.
+// frac이 이 값보다 '작으면'(위) 위험: 진입 시 ×1.5 + DANGER 보너스 + 연출.
+export const DANGER_FRAC_START = 0.36;            // frac ≤ 0.36(위쪽)이면 위험 구간
 export const DANGER_TOP_Y      = RIDE_TOP_Y + RIDE_SPAN * DANGER_FRAC_START;
 
 function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
@@ -85,16 +99,16 @@ export function rideYToFrac(y) {
   return clamp01((y - RIDE_TOP_Y) / RIDE_SPAN);
 }
 
-// 수직 위치별 점수 배율 (기존 LANE_MULTIPLIER 대체 — 연속)
+// 수직 위치별 점수 배율 — 위(마루·장애물이 솟는 곳)일수록 위험·고배율, 아래(어깨)일수록 안전·저배율.
 export function zoneMultiplierForY(y) {
   const f = rideYToFrac(y);
-  if (f >= DANGER_FRAC_START) return 1.5;   // 위험 구간
-  if (f >= 0.38)              return 1.2;   // 중간
-  return 1.0;                                // 안전(마루)
+  if (f <= DANGER_FRAC_START) return 1.5;   // 위험(위 — 마루)
+  if (f <= 0.62)              return 1.2;   // 중간
+  return 1.0;                                // 안전(아래 — 어깨)
 }
 
 export function isDangerY(y) {
-  return rideYToFrac(y) >= DANGER_FRAC_START;
+  return rideYToFrac(y) <= DANGER_FRAC_START;
 }
 
 // ─── 스폰 데이터 호환 ─────────────────────────────────────────────────────────
