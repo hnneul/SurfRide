@@ -3,6 +3,7 @@ import { disposeObject } from './bridge.js';
 import { World } from './world.js';
 import { Surfer } from './surfer.js';
 import { Obstacles } from './obstacles.js';
+import { BarrelTube } from './barrel.js';
 import { Signals } from './signals.js';
 import { GoldenFishLayer } from './goldenFish.js';
 import { Reef } from './reef.js';
@@ -48,6 +49,7 @@ export class ThreeLayer {
     this.world      = new World(this.scene, themeKey);
     this.surfer     = new Surfer(this.scene);
     this.obstacles  = new Obstacles(this.scene);
+    this.barrel     = new BarrelTube(this.scene);
     this.signals    = new Signals(this.scene);
     this.goldenFish = new GoldenFishLayer(this.scene);
     this.reef       = new Reef(this.scene);
@@ -65,6 +67,7 @@ export class ThreeLayer {
       this.surfer.update(state.player, state.cursors, this.t, this.world);
       this.signals.sync(state.signals, this.t, this.world);
       this.obstacles.sync(state.obstacles, this.t, this.world);
+      this.barrel.sync(state.barrel, this.surfer, this.t, dtMs);
       this.goldenFish.sync(state.goldenFishes, this.t, this.world);
       this.reef.sync(state.reef);
       this.spray.emitWake(this.surfer, state.player, dtMs);
@@ -100,6 +103,14 @@ export class ThreeLayer {
     this.camera.position.set(sx + o.x, 4.4 + jumpLift + o.y, 16.8 + this._camZ * 0.16);
     this.camera.up.set(o.roll, 1, 0);
     this.camera.lookAt(sx, 1.2 + sy * 0.12, this._camZ - 4.5);
+
+    // 속도감 — 파도 면을 내려탈수록(포켓) FOV를 살짝 넓혀 '확 빨라지는' 러시를 준다.
+    const speed = state?.player?.speed ?? 0;
+    const fov = 58 + speed * 8;
+    if (Math.abs(this.camera.fov - fov) > 0.05) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   // 카메라 흔들림 트리거 (피격·기상이변·위험구간·큰 파도·퍼펙트)
@@ -125,6 +136,7 @@ export class ThreeLayer {
     disposeObject(this.scene);
     this.world.dispose?.();
     this.obstacles.dispose();
+    this.barrel.dispose();
     this.signals.dispose();
     this.goldenFish.dispose();
     this.reef.dispose();
