@@ -1,7 +1,12 @@
 import {
-  eventRideY, rideYToFrac, ERUPT_X, TARGET_RATIO,
-  ERUPT_RISE_MS, ERUPT_ACTIVE_MS, ERUPT_SINK_MS, GRAZE_MARGIN,
+  eventLaneX, lateralFracFromX, RIDE_TOP_Y, RIDE_BOTTOM_Y, RIDE_FIXED_Y, TARGET_RATIO,
+  GRAZE_MARGIN,
 } from './constants.js';
+
+// 너울 타고 다가오는 장애물 — 먼 수평선(RIDE_TOP_Y)에서 근경(RIDE_BOTTOM_Y)으로 이동.
+// 서퍼 깊이(RIDE_FIXED_Y)를 지나는 순간이 충돌 창 → 좌우(←/→)로 비켜 피한다.
+const TRAVEL_MS = 2200;   // 먼→근 이동 시간(=다가오는 시간)
+const FADE_MS   = 280;    // 등장 페이드인
 
 export const ObstacleType = Object.freeze({
   FLYING_FISH: 'FLYING_FISH',
@@ -43,7 +48,7 @@ class SignalInstance {
     this.type     = event.signalType ?? OBSTACLE_META[event.obstacleType].signalType;
     this.variant  = event.variant ?? null;
     this.x        = spawnX;
-    this.y        = eventRideY(event);
+    this.y        = RIDE_FIXED_Y;
     this.duration = event.telegraphMs;
     this.targeted = !!event.targeted;
     this.isFake   = !!event.isFake;
@@ -207,21 +212,20 @@ const FLYING_FISH_TEXTURE_KEY = {
 };
 
 // 분출 단계 머신: RISE(솟구침) → ACTIVE(노출) → SINK(가라앉음) → done.
-// ERUPT_X 열에서 제자리 분출(x 고정).
+// 이벤트별 좌우 위치(x)에서 제자리 분출 — 깊이(y)는 RIDE_FIXED_Y 고정, 좌우로 회피한다.
 class ObstacleInstance {
   constructor(event, spawnX, scene) {
     this.scene   = scene;
     this.type    = event.obstacleType;
     this.variant = this.type === ObstacleType.FLYING_FISH ? (event.variant ?? 'small') : null;
-    this.targetY = eventRideY(event);
+    this.targetY = RIDE_TOP_Y;   // 먼 수평선에서 시작 → RIDE_FIXED_Y(서퍼 깊이)로 다가옴
     this.x       = spawnX;
     this.y       = this.targetY;
     this.active  = true;
 
-    this.phase   = 'RISE';
-    this.phaseT  = 0;
     this.ageMs   = 0;
-    this.reveal  = 0;          // 0(숨음)~1(완전 노출)
+    this.reveal  = 0;          // 0(숨음)~1(완전 노출) — 등장 페이드인
+    this.passed  = false;      // 서퍼 깊이 통과(회피 확정) 여부
 
     // 판정/스코어 상태
     this.grazed        = false;   // 그레이즈(아슬아슬) 진입 여부
@@ -245,10 +249,7 @@ class ObstacleInstance {
 
   // 충분히 솟은 동안만 충돌 유효(완전히 가라앉기 직전 제외)
   get collidable() {
-    if (!this.active) return false;
-    if (this.phase === 'RISE') return this.reveal > 0.55;
-    if (this.phase === 'SINK') return this.reveal > 0.45;
-    return this.phase === 'ACTIVE';
+    return this.active && this.reveal > 0.55 && !this.passed;
   }
 
   get hitbox() {
@@ -273,9 +274,12 @@ class ObstacleInstance {
   }
 
   update(deltaMs) {
-    this.phaseT += deltaMs;
-    this.ageMs  += deltaMs;
-    this._advancePhase();
+    this.ageMs += deltaMs;
+    const f = Math.min(1, this.ageMs / TRAVEL_MS);
+    this.targetY = RIDE_TOP_Y + (RIDE_BOTTOM_Y - RIDE_TOP_Y) * f;       // 먼 수평선 → 근경(다가옴)
+    this.reveal  = Math.min(1, this.ageMs / FADE_MS);                   // 등장 페이드인
+    if (this.targetY > RIDE_FIXED_Y + this.hitboxH) this.passed = true; // 서퍼 깊이 통과 → 회피 확정
+    if (f >= 1) this.active = false;                                    // 근경 끝 → 제거
     this._applyVisual();
     this._animateVisual();
   }
@@ -449,32 +453,17 @@ class ObstacleInstance {
     }
   }
 
-  _advancePhase() {
-    if (this.phase === 'RISE') {
-      this.reveal = Math.min(1, this.phaseT / ERUPT_RISE_MS);
-      if (this.phaseT >= ERUPT_RISE_MS) { this.phase = 'ACTIVE'; this.phaseT = 0; this.reveal = 1; }
-    } else if (this.phase === 'ACTIVE') {
-      this.reveal = 1;
-      if (this.phaseT >= ERUPT_ACTIVE_MS) { this.phase = 'SINK'; this.phaseT = 0; }
-    } else if (this.phase === 'SINK') {
-      this.reveal = Math.max(0, 1 - this.phaseT / ERUPT_SINK_MS);
-      if (this.phaseT >= ERUPT_SINK_MS) { this.active = false; }
-    }
-  }
-
   _applyVisual() {
-    const r = this.reveal;
-    // 아래(또는 위)에서 솟아오르는 느낌: scaleY + y 오프셋으로 표현
-    const emerge = (1 - r) * this.hitboxH * 0.5;
-    this.y = this.targetY + (this.fromAbove ? -emerge : emerge);
+    // 충돌·3D는 targetY(이동 깊이)를 쓴다. 아래 Phaser 비주얼은 숨김 캔버스라 안 보임(상태만 추종).
+    this.y = this.targetY;
     this.visual.setPosition(this.x, this.y);
-    this.visual.setScale(0.8 + 0.2 * r, Math.max(0.12, r));
-    this.visual.setAlpha(this.phase === 'SINK' ? 0.35 + 0.65 * r : 1);
+    this.visual.setScale(0.8 + 0.2 * this.reveal, Math.max(0.12, this.reveal));
+    this.visual.setAlpha(this.reveal);
   }
 
   // 안전 통과(분출 종료) 시점 — 한 번만 resolved 처리
   isResolved() {
-    return this.phase === 'SINK';
+    return this.passed;   // 서퍼 깊이를 통과 = 안전 회피(점수)
   }
 
   destroy() { this.visual.destroy(); }
@@ -491,9 +480,7 @@ export class ObstacleManager {
     this._pendingObstacles = [];
     this._resolvedQueue    = [];
     this.scrollSpeed       = 600;          // 배경 패럴랙스 속도(분출엔 미사용)
-    // 신호·분출 모두 서퍼 열(ERUPT_X)에서 발생.
-    this._signalX          = ERUPT_X;
-    this._obstacleSpawnX   = ERUPT_X;
+    // 신호·분출 x는 이벤트별 좌우 위치(eventLaneX), 깊이 y는 RIDE_FIXED_Y 고정 → 좌우 회피.
     this._stageDuration    = 60_000;
   }
 
@@ -556,13 +543,13 @@ export class ObstacleManager {
       const targeted = player && !ev.isFake &&
         (ev.aimAtPlayer ?? (Math.random() < TARGET_RATIO));
       if (targeted) {
-        ev = { ...ev, yFrac: rideYToFrac(player.baseY), targeted: true };
+        ev = { ...ev, xFrac: lateralFracFromX(player.x), targeted: true };
       }
 
-      this.signals.push(new SignalInstance(ev, this._signalX, this._scene));
+      this.signals.push(new SignalInstance(ev, eventLaneX(ev), this._scene));
 
       if (!ev.isFake) {
-        this._pendingObstacles.push({ spawnAtMs: ev.t + telegraphMs, event: ev });
+        this._pendingObstacles.push({ spawnAtMs: ev.t, event: ev });   // 즉시 먼 곳에 등장 → 다가옴(travel이 리드)
       }
     }
   }
@@ -572,7 +559,7 @@ export class ObstacleManager {
       const p = this._pendingObstacles[i];
       if (p.spawnAtMs <= stageTimerMs) {
         this.obstacles.push(
-          new ObstacleInstance(p.event, this._obstacleSpawnX, this._scene),
+          new ObstacleInstance(p.event, eventLaneX(p.event), this._scene),
         );
         this._pendingObstacles.splice(i, 1);
       }

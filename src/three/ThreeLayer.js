@@ -86,7 +86,9 @@ export class ThreeLayer {
   // 흔들림(fx)은 기준 위치 '위에' 더한다.
   _updateCamera(dtMs, state) {
     const s = this.surfer;
-    const sx = s.pos?.x ?? -6;
+    const CAM_BASE_X = -6.4;                               // 서퍼 기준 열(ERUPT_X 월드 x)
+    const sxRaw = s.pos?.x ?? CAM_BASE_X;
+    const sx = CAM_BASE_X + (sxRaw - CAM_BASE_X) * 0.35;   // 부분 추종 → 좌우 카빙이 화면에 보임
     const sz = s.pos?.z ?? 5;
     const sy = s.pos?.y ?? 0.7;
     const k = Math.min(1, 0.06 * (dtMs / 16.667));

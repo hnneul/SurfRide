@@ -1010,32 +1010,32 @@ html, body {
 
 .hud__balance {
   position: absolute;
-  left: 50%; bottom: 38px;
-  transform: translateX(-50%);
-  width: min(46vw, 540px);
+  right: 30px; top: 50%;
+  transform: translateY(-50%);
   text-align: center;
 }
-.hud__balance-label { font-size: 14px; letter-spacing: 2px; color: #cfe0f0; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
+.hud__balance-label { display: block; margin-bottom: 6px; font-size: 14px; letter-spacing: 2px; color: #cfe0f0; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
 .hud__balance-track {
   position: relative;
-  height: 26px;
-  margin-top: 6px;
+  width: 26px;
+  height: min(42vh, 360px);
+  margin: 0 auto;
   border-radius: 13px;
   background: rgba(4, 18, 36, 0.5);
   overflow: hidden;
 }
-.hud__balance-safe { position: absolute; top: 0; bottom: 0; background: rgba(46, 204, 113, 0.22); }
+.hud__balance-safe { position: absolute; left: 0; right: 0; background: rgba(46, 204, 113, 0.22); }
 .hud__balance-center {
-  position: absolute; top: 0; bottom: 0; left: 50%;
-  width: 3px; transform: translateX(-50%);
+  position: absolute; left: 0; right: 0; top: 50%;
+  height: 3px; transform: translateY(-50%);
   background: rgba(255, 255, 255, 0.6);
 }
 .hud__balance-marker {
-  position: absolute; top: 3px; bottom: 3px; left: 50%;
-  width: 18px; transform: translateX(-50%);
+  position: absolute; left: 3px; right: 3px; top: 50%;
+  height: 18px; transform: translateY(-50%);
   border-radius: 6px;
   background: #4fc3f7;
-  transition: left 0.05s linear;
+  transition: top 0.05s linear;
 }
 .hud__balance-marker.is-warn { background: #ff3b30; animation: hud-blink 0.3s steps(2, jump-none) infinite; }
 

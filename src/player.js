@@ -1,19 +1,25 @@
 import {
-  LOGICAL_WIDTH, RIDE_TOP_Y, RIDE_BOTTOM_Y, isDangerY, zoneMultiplierForY, BALANCE, TRICK, DIVE,
-  MAX_HEALTH, HIT_IFRAME_MS,
+  ERUPT_X, RIDE_TOP_Y, RIDE_BOTTOM_Y, RIDE_FIXED_Y, LATERAL_RANGE,
+  isDangerY, zoneMultiplierForY, BALANCE, TRICK, DIVE, MAX_HEALTH, HIT_IFRAME_MS,
 } from './constants.js';
 
 // 스폰 데이터 호환을 위한 재수출
 export { Lane } from './constants.js';
 
-const STEER_ACCEL = 2400;   // 수직 가속 (px/s²) — v3: 가동 폭 축소
-const STEER_MAX   = 420;    // 최대 수직 속도 (px/s) — v3: 정밀 이동 강제
+const STEER_MAX   = 420;    // 보드 카빙 시각 정규화용 (레인 조작 제거됨 — _render에서만 사용)
 const JUMP_SPEED  = 1180;   // 점프 초기 상승 속도 (px/s)
 // v5: 점프로 분출(ERUPT_X 제자리)을 넘으려면 안전 체공 > 분출 collidable 시간이어야 한다.
 // 체공을 원래 수준(~0.87s, 안 붕 뜨게)으로 되돌리고, 대신 분출 ACTIVE를 줄여
 // 위협을 ~0.61s로 낮춰 양쪽을 만나게 함(ERUPT_ACTIVE_MS와 함께 튜닝).
 const GRAVITY     = 2700;   // 점프 중력 (px/s²)
 const JUMP_BUFFER_MS = 120; // 착지 직전 이 시간(ms) 내 누른 점프를 기억했다가 착지 순간 발동
+
+// ── 좌우 이동 — ←/→ 로 좌우 이동(깊이 고정). 밸런스는 ↑/↓로 별도(상시 긴장 유지). ──
+// CENTER_X·LATERAL_RANGE는 constants에서 장애물 좌우 띠와 공유(같은 좌표계로 충돌).
+const CENTER_X      = ERUPT_X;   // 서퍼 기준 열(좌우 이동 중심)
+const LATERAL_ACCEL = 2600;      // 가로 가속(px/s²)
+const LATERAL_MAX   = 540;       // 최대 가로 속도(px/s)
+const LATERAL_DAMP  = 10;        // 무입력 시 가로 감쇠율(/s)
 
 export class Player {
   constructor(scene) {
@@ -55,10 +61,11 @@ export class Player {
   }
 
   reset() {
-    this.x          = LOGICAL_WIDTH * 0.20;
-    this.baseY      = RIDE_TOP_Y + (RIDE_BOTTOM_Y - RIDE_TOP_Y) * 0.30;
+    this.x          = CENTER_X;
+    this.baseY      = RIDE_FIXED_Y;   // 깊이 고정 — 좌우 이동 체계
     this.y          = this.baseY;
     this.vSteer     = 0;
+    this.vLateral   = 0;   // 좌우 카빙 속도(프로토)
     this.jumpOffset = 0;   // 파도 면 위로 떠오른 높이 (>=0)
     this.jumpVel    = 0;
     this.isJumping  = false;
@@ -134,7 +141,7 @@ export class Player {
     if (this.invulnMs > 0)  this.invulnMs  = Math.max(0, this.invulnMs - deltaMs);
     if (this.staggerMs > 0) this.staggerMs = Math.max(0, this.staggerMs - deltaMs);
 
-    this._handleSteer(dt, cursors, environment);
+    this._handleMove(dt, cursors);
     this._handleBalance(dt, cursors, environment);
     this._handleTrick(dt, cursors);
     this._handleDive(dt, cursors);
@@ -143,29 +150,38 @@ export class Player {
     this._render(deltaMs);
   }
 
-  // ←/→ 카운터-스티어로 균형 유지. 무입력 시 드리프트만 누적 → 와이프아웃.
+  // ←/→ = 좌우 이동(순수, 관성). 깊이(레인)는 고정 — 밸런스는 ↑/↓로 별도 관리한다.
+  _handleMove(dt, cursors) {
+    let dir = 0;
+    if (this.isGrounded) {                        // 공중 ←/→ 는 _handleTrick(스핀)이 가져감
+      if (cursors.left?.isDown)  dir -= 1;
+      if (cursors.right?.isDown) dir += 1;
+    }
+    if (dir !== 0) this.vLateral += dir * LATERAL_ACCEL * dt;
+    else           this.vLateral -= this.vLateral * Math.min(1, LATERAL_DAMP * dt);
+    this.vLateral = Phaser_clamp(this.vLateral, -LATERAL_MAX, LATERAL_MAX);
+    this.x += this.vLateral * dt;
+    this.x = Phaser_clamp(this.x, CENTER_X - LATERAL_RANGE, CENTER_X + LATERAL_RANGE);
+  }
+
+  // ↑/↓ = 밸런스 보정. 드리프트가 계속 tilt를 밀고(상시 긴장), ↑/↓로 되민다. 한계 넘으면 와이프아웃.
+  // ↑=마커 위로(tilt-) / ↓=마커 아래로(tilt+) — 세로 밸런스바와 방향 일치.
   _handleBalance(dt, cursors, environment) {
     if (!this.isGrounded) {
-      // 공중 = 드리프트 정지 + 균형은 천천히만 완화(지상보다 훨씬 느리게). 점프로 '완전'
-      // 리셋은 안 되되(탈출구 차단), 마커가 얼지 않고 슬슬 움직이도록.
-      this.tilt -= this.tilt * Math.min(1, BALANCE.AIR_EASE * dt);
+      this.tilt -= this.tilt * Math.min(1, BALANCE.AIR_EASE * dt);   // 공중: 천천히만 완화
       return;
     }
-
     const span  = RIDE_BOTTOM_Y - RIDE_TOP_Y;
-    const depth = (this.baseY - RIDE_TOP_Y) / span;   // 0(마루)~1(거친 바다)
+    const depth = (this.baseY - RIDE_TOP_Y) / span;
     const t     = (this.scene?.stageTimer ?? 0);
 
-    // 깊을수록 강한 드리프트 + 파도 출렁임 외란
     const driftMag = BALANCE.BASE_DRIFT + BALANCE.DEPTH_K * depth;
     const wobble   = Math.sin(t * 0.004 + this._driftSeed) * BALANCE.WOBBLE_AMP;
     const driftDir = Math.sin(t * 0.0011 + this._driftSeed) >= 0 ? 1 : -1;
-
     this.tilt += (driftDir * driftMag + wobble + (environment?.balanceDrift ?? 0)) * dt;
 
-    // 보정 입력
-    if (cursors.left?.isDown)  this.tilt -= BALANCE.CORRECT_RATE * dt;
-    if (cursors.right?.isDown) this.tilt += BALANCE.CORRECT_RATE * dt;
+    if (cursors.up?.isDown)   this.tilt -= BALANCE.CORRECT_RATE * dt;
+    if (cursors.down?.isDown) this.tilt += BALANCE.CORRECT_RATE * dt;
 
     const wipeoutAt = environment?.balanceWipeoutAt ?? BALANCE.WIPEOUT_AT;
     this.tilt = Phaser_clamp(this.tilt, -1.25, 1.25);
@@ -202,23 +218,6 @@ export class Player {
       this.diveMs = 0;
     }
     this._shiftPrev = pressed;
-  }
-
-  _handleSteer(dt, cursors, environment) {
-    const locked = this.staggerMs > 0;   // 비틀거림 중 상하 이동 봉인
-    if (!locked && cursors.up.isDown)        this.vSteer -= STEER_ACCEL * dt;
-    else if (!locked && cursors.down.isDown) this.vSteer += STEER_ACCEL * dt;
-    else                                     this.vSteer -= this.vSteer * Math.min(1, 11 * dt);
-
-    this.vSteer += (environment?.windForce ?? 0) * dt;
-    this.vSteer = Phaser_clamp(this.vSteer, -STEER_MAX, STEER_MAX);
-    this.baseY += this.vSteer * dt;
-
-    // 가동 폭 — 기본은 RIDE 전체. 암초 지대(narrowLane)에선 environment가 좁은 통로 경계를 준다.
-    const laneTop = environment?.laneTopY ?? RIDE_TOP_Y;
-    const laneBot = environment?.laneBottomY ?? RIDE_BOTTOM_Y;
-    if (this.baseY < laneTop) { this.baseY = laneTop; if (this.vSteer < 0) this.vSteer = 0; }
-    if (this.baseY > laneBot) { this.baseY = laneBot; if (this.vSteer > 0) this.vSteer = 0; }
   }
 
   // 누른 '순간'에만 버퍼 충전(엣지) → 홀드 연사 방지 유지.

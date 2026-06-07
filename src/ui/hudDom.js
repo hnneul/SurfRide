@@ -168,12 +168,13 @@ export function mountHud(parent = document.getElementById('game-container')) {
 
     const wipeoutAt = s.wipeoutAt ?? BALANCE.WIPEOUT_AT;
     const safeFrac = BALANCE.WARN_AT / wipeoutAt;
-    el.safe.style.left  = `${50 - safeFrac * 50}%`;
-    el.safe.style.width = `${safeFrac * 100}%`;
+    // 세로 밸런스바 — 안전 영역(중앙) + 마커를 top%로 (가로→세로 전환)
+    el.safe.style.top    = `${50 - safeFrac * 50}%`;
+    el.safe.style.height = `${safeFrac * 100}%`;
 
-    // 밸런스 마커 — tilt[-WIPEOUT..WIPEOUT] → 0~100%
+    // 밸런스 마커 — tilt[-WIPEOUT..WIPEOUT] → 위(0%)~아래(100%). ↑=위(tilt-) / ↓=아래(tilt+)
     const t = Math.max(-1, Math.min(1, s.tilt / wipeoutAt));
-    el.marker.style.left = `${50 + t * 50}%`;
+    el.marker.style.top = `${50 + t * 50}%`;
     el.marker.classList.toggle('is-warn', Math.abs(s.tilt) >= BALANCE.WARN_AT);
   }
 

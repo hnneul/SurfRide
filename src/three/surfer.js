@@ -14,13 +14,14 @@ export class Surfer {
         new THREE.MeshLambertMaterial({ color, flatShading: true }));
 
     const g = new THREE.Group();
-    const board = box(2.4, 0.12, 0.65, 0xfff0d0);
+    const board = box(0.62, 0.12, 2.4, 0xfff0d0);   // 진행 방향(z)으로 길게 = 화면상 세로(앞을 봄)
     const body  = box(0.35, 0.58, 0.3, 0xff7733); body.position.y = 0.65;
     const head  = box(0.28, 0.28, 0.28, 0xe8a882); head.position.y = 1.1;
     const armL  = box(0.55, 0.14, 0.14, 0xe8a882); armL.position.set(-0.33, 0.78, 0); armL.rotation.z =  0.4;
     const armR  = box(0.55, 0.14, 0.14, 0xe8a882); armR.position.set( 0.33, 0.78, 0); armR.rotation.z = -0.4;
-    const legL  = box(0.18, 0.36, 0.18, 0x3366aa); legL.position.set(-0.13, 0.3, 0);
-    const legR  = box(0.18, 0.36, 0.18, 0x3366aa); legR.position.set( 0.13, 0.3, 0);
+    // 서핑 스탠스 — 발을 보드 길이축(z)으로 앞뒤로 벌린다(세로 보드에 맞춤)
+    const legL  = box(0.2, 0.36, 0.18, 0x3366aa); legL.position.set( 0.05, 0.3, -0.4);
+    const legR  = box(0.2, 0.36, 0.18, 0x3366aa); legR.position.set(-0.05, 0.3,  0.5);
 
     g.add(board, legL, legR, body, armL, armR, head);
     this.group = g;

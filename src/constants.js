@@ -67,6 +67,10 @@ export const RIDE_TOP_Y    = LOGICAL_HEIGHT * 0.40;
 export const RIDE_BOTTOM_Y = LOGICAL_HEIGHT * 0.82;
 export const RIDE_SPAN     = RIDE_BOTTOM_Y - RIDE_TOP_Y;
 
+// 좌우 이동 체계: 서퍼·장애물은 고정 깊이(RIDE_FIXED_Y) 한 줄에서 x로만 겨룬다(좌우 회피).
+export const RIDE_FIXED_Y  = RIDE_TOP_Y + RIDE_SPAN * 0.50;   // 서퍼 고정 깊이(중앙) — 장애물이 여기로 다가옴
+export const LATERAL_RANGE = 330;                             // 좌우 이동 폭(px, ERUPT_X 중심 ±)
+
 // 위험 구간(거친 바다) — 라이딩 면 하단부. 진입 시 ×1.5 + DANGER 보너스 + 연출
 export const DANGER_FRAC_START = 0.64;            // 라이딩 구간 내 시작 비율
 export const DANGER_TOP_Y      = RIDE_TOP_Y + RIDE_SPAN * DANGER_FRAC_START;
@@ -106,4 +110,19 @@ export function eventRideY(event) {
     ? event.yFrac
     : (LANE_ANCHOR_FRAC[event.lane] ?? 0.5);
   return fracToRideY(frac);
+}
+
+// 좌우 이동 체계 — 스폰 데이터의 위치 필드(xFrac > yFrac > lane)를 좌우 띠(ERUPT_X ± LATERAL_RANGE) x로 매핑.
+// 기존 lane(T/M/B=0.14/0.5/0.84)이 그대로 좌/중/우 위치가 된다(스폰 리듬 재사용).
+/** @param {SpawnEvent} event @returns {number} */
+export function eventLaneX(event) {
+  const frac = Number.isFinite(event.xFrac) ? event.xFrac
+    : Number.isFinite(event.yFrac) ? event.yFrac
+    : (LANE_ANCHOR_FRAC[event.lane] ?? 0.5);
+  return ERUPT_X + (clamp01(frac) - 0.5) * 2 * LATERAL_RANGE;
+}
+
+// 서퍼 x → 좌우 프랙션(0~1). 타겟 장애물이 서퍼의 현재 x를 찍을 때 사용.
+export function lateralFracFromX(x) {
+  return clamp01((x - (ERUPT_X - LATERAL_RANGE)) / (2 * LATERAL_RANGE));
 }
