@@ -32,6 +32,13 @@ export function mountTutorial({ onNext, onSkip }, parent = document.getElementBy
   };
   root.addEventListener('click', onClick);
 
+  const onKey = (e) => {
+    if (root.hidden || e.key !== 'Enter') return;
+    e.preventDefault();
+    onNext?.();
+  };
+  document.addEventListener('keydown', onKey);
+
   function show(step) {
     el.title.textContent = step.title;
     el.body.textContent = step.body;
@@ -50,6 +57,7 @@ export function mountTutorial({ onNext, onSkip }, parent = document.getElementBy
     hide,
     destroy() {
       root.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKey);
       root.remove();
     },
   };
