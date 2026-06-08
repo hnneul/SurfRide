@@ -548,6 +548,7 @@ export class ObstacleManager {
       }
 
       this.signals.push(new SignalInstance(ev, eventLaneX(ev), this._scene));
+      this._scene._onObstacleSignal?.(ev);
 
       if (!ev.isFake) {
         this._pendingObstacles.push({ spawnAtMs: ev.t, event: ev });   // 즉시 먼 곳에 등장 → 다가옴(travel이 리드)
