@@ -1316,6 +1316,143 @@ html, body {
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   튜토리얼 오버레이 (DOM — 기능 첫 등장 시 게임 루프 정지)
+   ───────────────────────────────────────────────────────────────────────── */
+.tutorial-ui {
+  position: absolute; inset: 0; z-index: 4;
+  display: flex; align-items: center; justify-content: center;
+  padding: clamp(16px, 4vw, 28px);
+  background:
+    linear-gradient(180deg, rgba(4, 18, 36, 0.14), rgba(4, 18, 36, 0.44)),
+    rgba(4, 18, 36, 0.24);
+  backdrop-filter: blur(3px) saturate(1.08);
+  -webkit-backdrop-filter: blur(3px) saturate(1.08);
+  font-family: 'Pretendard', 'Segoe UI', sans-serif;
+}
+.tutorial-ui[hidden] { display: none; }
+.tutorial-ui__panel {
+  position: relative;
+  width: min(520px, 100%);
+  text-align: center;
+  padding: clamp(26px, 4.4vh, 38px) clamp(20px, 5vw, 38px) clamp(22px, 4vh, 30px);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 214, 107, 0.28), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(225, 249, 255, 0.9) 58%, rgba(194, 240, 250, 0.92) 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.78);
+  border-radius: 8px;
+  box-shadow:
+    0 32px 70px -24px rgba(4, 40, 74, 0.7),
+    0 0 0 7px rgba(255, 255, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  overflow: hidden;
+}
+.tutorial-ui__panel::before {
+  content: '';
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: -54px;
+  height: 118px;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 28% 0%, rgba(35, 198, 196, 0.22), transparent 54%),
+    repeating-linear-gradient(170deg, rgba(7, 38, 62, 0.08) 0 2px, transparent 2px 22px);
+  opacity: 0.68;
+}
+.tutorial-ui__eyebrow,
+.tutorial-ui__title,
+.tutorial-ui__body,
+.tutorial-ui__keys,
+.tutorial-ui__actions {
+  position: relative;
+  z-index: 1;
+}
+.tutorial-ui__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 214, 107, 0.44);
+  border: 1px solid rgba(255, 178, 73, 0.62);
+  color: #8a5200;
+  font-size: 12px;
+  font-weight: 900;
+}
+.tutorial-ui__title {
+  margin-top: 10px;
+  color: var(--ink);
+  font-size: clamp(28px, 6vw, 40px);
+  font-weight: 900;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.55);
+}
+.tutorial-ui__body {
+  width: min(420px, 100%);
+  margin: 10px auto 18px;
+  color: #285c76;
+  font-size: clamp(15px, 3.7vw, 18px);
+  font-weight: 700;
+  line-height: 1.5;
+}
+.tutorial-ui__keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  margin-bottom: 22px;
+}
+.tutorial-ui__key {
+  min-width: 46px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fff4b8 0%, #ffd66b 52%, #7bdcff 100%);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 10px 18px -12px rgba(4, 40, 74, 0.78),
+    0 2px 0 rgba(255, 255, 255, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  color: #06354e;
+  font-family: inherit;
+  font-size: clamp(14px, 3.4vw, 17px);
+  font-weight: 900;
+  text-align: center;
+}
+.tutorial-ui__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.tutorial-ui__button {
+  width: 100%;
+  padding: 13px 18px;
+  border-radius: 8px;
+  font-size: clamp(16px, 3.8vw, 18px);
+}
+.tutorial-ui__button--next {
+  color: #06354e;
+  background: linear-gradient(180deg, #fff4b8 0%, #8fe3ff 54%, #4fc3f7 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 16px 28px -14px rgba(4, 84, 128, 0.68),
+    0 3px 0 rgba(255, 255, 255, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+.tutorial-ui__skip {
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  color: #527f93;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.tutorial-ui__skip:hover { color: #075480; }
+
 /* HUD 미니맵 (항해 진척) */
 .hud__minimap { position: absolute; top: 64px; left: 28px; width: 300px; pointer-events: none; }
 .hud__minimap-label { font-size: 14px; color: #c8e0f8; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }

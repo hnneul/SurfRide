@@ -4,6 +4,7 @@
 const STORAGE_KEY = 'surfride_save';
 const MAX_STAGE_ID = 10;
 const MAX_STAGE_INDEX = MAX_STAGE_ID - 1;
+const LEGACY_TUTORIAL_STEPS = ['move', 'jumpFlyingFish', 'rideZone', 'balance'];
 
 // 개발 중에만 모든 해역 해금(로컬 진행 기록은 유지·병합). vite dev=true / build=false 자동.
 const DEV_UNLOCK_ALL = import.meta.env.DEV;
@@ -21,6 +22,7 @@ const DEV_UNLOCK_ALL = import.meta.env.DEV;
 //     quality:      'high' | 'medium' | 'low',
 //   },
 //   tutorialCompleted: boolean,
+//   tutorialSeenSteps: string[],
 //   lastPlayedTime:    number,         // Date.now()
 // }
 
@@ -37,6 +39,7 @@ const DEFAULT_SAVE = {
     quality:   'high',
   },
   tutorialCompleted: false,
+  tutorialSeenSteps: [],
   lastPlayedTime:    null,
 };
 
@@ -82,6 +85,10 @@ export class StorageManager {
       ? { ...base.settings, ...source.settings }
       : base.settings;
 
+    const tutorialSeenSteps = Array.isArray(source.tutorialSeenSteps)
+      ? [...new Set(source.tutorialSeenSteps.filter((id) => typeof id === 'string'))]
+      : (source.tutorialCompleted ? LEGACY_TUTORIAL_STEPS : []);
+
     return {
       ...base,
       ...source,
@@ -90,6 +97,7 @@ export class StorageManager {
       globalHighScore: this._toNonNegativeInt(source.globalHighScore),
       settings,
       tutorialCompleted: Boolean(source.tutorialCompleted),
+      tutorialSeenSteps,
       lastPlayedTime: Number.isFinite(source.lastPlayedTime) ? source.lastPlayedTime : null,
     };
   }
@@ -144,6 +152,16 @@ export class StorageManager {
     this.save();
   }
 
+  hasSeenTutorialStep(stepId) {
+    return this._data.tutorialSeenSteps.includes(stepId);
+  }
+
+  markTutorialStepSeen(stepId) {
+    if (!stepId || this.hasSeenTutorialStep(stepId)) return;
+    this._data.tutorialSeenSteps.push(stepId);
+    this.save();
+  }
+
   isStageUnlocked(stageId) {
     return !!this._data.unlockedStages.find(s => s.id === stageId);
   }
@@ -155,6 +173,7 @@ export class StorageManager {
   /** @returns {GameSettings} */
   get settings() { return this._data.settings; }
   get tutorialCompleted() { return this._data.tutorialCompleted; }
+  get tutorialSeenSteps() { return this._data.tutorialSeenSteps; }
   get currentStage() { return this._data.currentStage; }
   get globalHighScore() { return this._data.globalHighScore; }
 

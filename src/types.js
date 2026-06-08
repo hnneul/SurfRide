@@ -112,6 +112,7 @@
  * @property {number} globalHighScore
  * @property {GameSettings} settings
  * @property {boolean} tutorialCompleted
+ * @property {string[]} tutorialSeenSteps
  * @property {number|null} lastPlayedTime      Date.now()
  */
 
@@ -121,6 +122,7 @@
  * MainMenu/WorldMap/Result → GameScene 진입 데이터.
  * @typedef {Object} GameSceneInit
  * @property {number} stageIndex   0-indexed
+ * @property {boolean} [forceTutorial] 메뉴에서 튜토리얼 다시 보기로 진입했는지
  */
 
 /**
