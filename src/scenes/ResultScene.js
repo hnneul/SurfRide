@@ -5,6 +5,7 @@ import { OBSTACLE_META } from '../obstacle.js';
 import { STAGES } from '../stages.js';
 import { submitScore } from '../ranking.js';
 import { ensureNickname } from '../ui/rankingModal.js';
+import { audio } from '../audio.js';
 
 /** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
 
@@ -44,6 +45,10 @@ export default class ResultScene extends Phaser.Scene {
 
   create() {
     const cx = LOGICAL_WIDTH / 2;
+
+    // 결과 화면 사운드 — 클리어는 엔딩 BGM + 팡파레, 게임오버는 BGM 멈추고 짧은 스팅
+    if (this.cleared) { audio.playBgm('clear'); audio.playSfx('clear'); }
+    else              { audio.stopBgm(); audio.playSfx('gameover', { volume: 0.85 }); }
 
     // 애니메이션/타이머 추적 — 스킵·종료 시 일괄 정리하기 위한 단일 레지스트리
     this._tweens  = [];

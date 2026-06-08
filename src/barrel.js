@@ -6,6 +6,8 @@
 // 판정·점수·연출만 담당. 튜브 렌더는 ThreeLayer.barrel(BarrelTube)가 tube()를 읽어 그린다.
 // GameScene이 소유하며 매 프레임 update(dt)를 호출하고, HUD는 hud()로 읽어간다.
 
+import { audio } from './audio.js';
+
 const WARN_MS = 1_600;   // 예고(말려 들어오는 파도) 길이
 const OPEN_MS = 6_000;   // 배럴이 열려 있는 창
 const GOOD_MS = 3_200;   // 이만큼 튜브에 박혀 있으면 품질 1.0(만점 보너스)
@@ -114,6 +116,7 @@ export class BarrelManager {
   _onMade(quality) {
     const s = this.scene;
     const pts = s.scoreManager.onBarrelMade(quality, s.player.baseY);
+    audio.playSfx('barrel');
     s._slowmoMs = Math.max(s._slowmoMs, 200);
     s.cameras.main.flash(200, 150, 240, 255, false);
     s.cameras.main.shake(220, 0.005);

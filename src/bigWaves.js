@@ -1,5 +1,6 @@
 import { ERUPT_X, LATERAL_RANGE } from './constants.js';
 import { gameX2WorldX } from './three/bridge.js';
+import { audio } from './audio.js';
 
 // ─── 큰 파도 이벤트 (예고 → 좌우 포켓 라이딩 → 보상) ──────────────────────────
 // 배경 장식이 아니라 게임 이벤트: 예고 후 거대 너울이 화면 '한쪽(포켓)'에만 솟는다(나머지는 평평).
@@ -102,6 +103,7 @@ export class BigWaveManager {
   _onSuccess(quality) {
     const s = this.scene;
     const pts = s.scoreManager.onBigWave(quality, s.player.baseY);
+    audio.playSfx('wave');
     s._slowmoMs = Math.max(s._slowmoMs, 150);
     s.cameras.main.flash(160, 150, 220, 255, false);
     s.cameras.main.shake(200, 0.004);

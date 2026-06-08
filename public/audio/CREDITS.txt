@@ -1,0 +1,29 @@
+SurfRide — 오디오 출처 (전부 CC0 / Public Domain, 표기 의무 없음. 기록용)
+
+[효과음 SFX]  Kenney "Interface Sounds"  https://kenney.nl/assets/interface-sounds
+  라이선스: CC0 1.0 (Public Domain)
+  파일(의미명 <- 원본):
+    sfx-click.wav    <- click_001.wav         (UI 클릭)
+    sfx-back.wav     <- close_001.wav         (모달 닫기/뒤로)
+    sfx-jump.wav     <- pluck_001.wav         (점프)
+    sfx-perfect.wav  <- confirmation_001.wav  (퍼펙트 점프)
+    sfx-near.wav     <- scratch_001.wav       (아슬아슬 회피)
+    sfx-pickup.wav   <- bong_001.wav          (황금 물고기 획득)
+    sfx-wave.wav     <- maximize_001.wav      (큰 파도 타기)
+    sfx-barrel.wav   <- confirmation_003.wav  (배럴 메이드)
+    sfx-hit.wav      <- glass_001.wav         (피격)
+    sfx-wipeout.wav  <- error_004.wav         (와이프아웃)
+    sfx-gameover.wav <- minimize_001.wav      (게임오버 화면)
+    sfx-clear.wav    <- confirmation_004.wav  (스테이지 클리어)
+
+[배경음 BGM]  Juhani Junkala "Retro Game Music Pack"
+  출처: https://archive.org/details/JuhaniJunkalafiveactionchiptunes  (OpenGameArt 동일 음원)
+  라이선스: CC0 1.0 (Public Domain)
+  파일(의미명 <- 트랙):
+    bgm-menu.ogg     <- Title Screen   (메인 메뉴 / 세계지도)
+    bgm-stage-1.ogg  <- Level 1        (1~3구역)
+    bgm-stage-2.ogg  <- Level 2        (4~6구역)
+    bgm-stage-3.ogg  <- Level 3        (7~10구역)
+    bgm-clear.ogg    <- Ending         (스테이지 클리어 화면)
+
+SFX는 의미에 맞게 다른 사운드로 교체 가능. 더 게임다운 효과음은 jsfxr(https://sfxr.me) 등으로 생성해 교체 권장.

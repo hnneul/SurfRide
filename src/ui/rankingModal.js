@@ -9,6 +9,7 @@ import {
   fetchTopScores, getNickname, setNickname, isAvailable,
   sanitizeNickname, NICKNAME_MAX,
 } from '../ranking.js';
+import { audio } from '../audio.js';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
@@ -78,8 +79,9 @@ export function openRankingModal({ parent = document.body, stageIndex = 0 } = {}
   };
 
   const onClick = (e) => {
-    if (e.target.closest('[data-close]')) { close(); return; }
+    if (e.target.closest('[data-close]')) { audio.playSfx('back'); close(); return; }
     if (e.target.closest('.nick-bar__edit')) {
+      audio.playSfx('click');
       promptNickname({ current: getNickname() }).then((name) => {
         if (name) { renderNick(); load(); }   // 새 닉네임 기준으로 본인 하이라이트 갱신
       });

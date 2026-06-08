@@ -12,6 +12,7 @@ import { StageGimmickManager } from '../stageGimmicks.js';
 import { ThreeLayer } from '../three/ThreeLayer.js';
 import { mountHud } from '../ui/hudDom.js';
 import { mountPause } from '../ui/pauseDom.js';
+import { audio, bgmForStage } from '../audio.js';
 
 /** @typedef {import('../types.js').GameSceneInit} GameSceneInit */
 /** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
@@ -64,6 +65,7 @@ export default class GameScene extends Phaser.Scene {
     this.escKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this._setupTutorial();
+    audio.playBgm(bgmForStage(this.stageIndex));   // 구역대별 BGM
 
     // Phaser 2D 캔버스를 숨기고 그 위에 Three 캔버스 + DOM HUD/일시정지 오버레이를 올린다.
     // 게임 로직·입력은 그대로 — update()가 매 프레임 three.render()로 렌더만 위임한다.
@@ -189,6 +191,7 @@ export default class GameScene extends Phaser.Scene {
   // 피격: 하트 차감·콤보 리셋·연출. 사망(하트 0)이면 true 반환 → 게임오버.
   _onHit(obstacle) {
     const dead = this.player.takeHit();
+    audio.playSfx('hit');
     this.scoreManager.onComboBreak();
     this.barrelManager?.onPlayerHit();   // 배럴 도중 피격 → 튜브 붕괴(마무리 보너스 날림)
     this.cameras.main.shake(dead ? 320 : 180, dead ? 0.012 : 0.008);
@@ -204,6 +207,7 @@ export default class GameScene extends Phaser.Scene {
     const grounded = this.player.isGrounded;
     if (this._wasGrounded && !grounded) {
       this.three?.surferSplash(0.9);                                    // 이륙
+      audio.playSfx('jump', { volume: 0.7 });
     } else if (!this._wasGrounded && grounded) {
       this.three?.surferSplash(1.8);                                    // 착지 물보라 강하게
     }
@@ -221,6 +225,7 @@ export default class GameScene extends Phaser.Scene {
       }
       if (obs.grazed && !obs.jumpedOver) {
         this.scoreManager.onNearMiss(y);
+        audio.playSfx('near', { volume: 0.85 });
         this._triggerSlowmo();
       }
     }
@@ -234,6 +239,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _onPerfectJump() {
+    audio.playSfx('perfect');
     this._slowmoMs = Math.max(this._slowmoMs, 110);
     this.cameras.main.flash(95, 255, 236, 120, false);
     this.cameras.main.shake(110, 0.003);
@@ -246,6 +252,8 @@ export default class GameScene extends Phaser.Scene {
   // 에어 트릭 클린 랜딩 — 점수 적립 + 보상 연출(슬로우모션·플래시·토스트)
   _onTrick() {
     const pts = this.scoreManager.onTrick(this.player.baseY, this.player.trickHalfSpins);
+    audio.playSfx('perfect', { volume: 0.8, rate: 1.18 });
+
     this._slowmoMs = Math.max(this._slowmoMs, 130);
     this.cameras.main.flash(110, 130, 220, 255, false);
     this.cameras.main.shake(120, 0.0035);
@@ -264,6 +272,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _onGoldenFish() {
+    audio.playSfx('pickup');
     this.three?.surferSplash(1.2, 0xffe27a);
     this.cameras.main.flash(120, 255, 224, 120, false);
     this.hud?.flash(255, 224, 120, 120);
@@ -334,6 +343,7 @@ export default class GameScene extends Phaser.Scene {
 
   _gameOver(hitObstacle, cause = 'collision') {
     this._active = false;
+    if (cause === 'wipeout') audio.playSfx('wipeout');   // 충돌은 _onHit에서 이미 'hit' 재생
     const summary = this.scoreManager.getSummary();
     const prevHigh = this.storage.getHighScore(this.stageIndex + 1);
     this.storage.recordStageAttempt(this.stageIndex + 1, summary.total);

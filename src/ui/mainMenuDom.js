@@ -4,6 +4,7 @@
 import menuLogo from '../../img/surfride-logo-v3-cutout.png';
 import menuBackground from '../../img/main-menu-surf-dog.png';
 import { openRankingModal } from './rankingModal.js';
+import { audio } from '../audio.js';
 
 const CONTROLS = [
   ['↑ / ↓', '파도 위아래로 이동하며 안전한 라인을 찾아요'],
@@ -49,13 +50,14 @@ export function mountMainMenu({ save, storage, stages, onStart, onContinue, onWo
   const onClick = (e) => {
     const btn = e.target.closest('[data-act]');
     if (!btn || btn.disabled) return;
+    audio.playSfx('click');
     switch (btn.dataset.act) {
       case 'start':    onStart(); break;
       case 'continue': onContinue(); break;
       case 'map':      onWorldMap(); break;
       case 'ranking':  openRankingModal({ stageIndex: save?.currentStage ?? 0 }); break;
       case 'controls': openControls(overlay); break;
-      case 'settings': /* 설정 화면은 추후 */ break;
+      case 'settings': openSettings(overlay); break;
     }
   };
   overlay.addEventListener('click', onClick);
@@ -150,6 +152,54 @@ function openControls(overlay) {
 
 function closeControls(overlay) {
   overlay.querySelector('.modal')?.remove();
+}
+
+// 설정 모달 — BGM/효과음 볼륨 슬라이더. audio 매니저에 즉시 반영 + localStorage 자동 저장.
+function openSettings(overlay) {
+  if (overlay.querySelector('.modal')) return;
+  const pct = (v) => Math.round(v * 100);
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML = `
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel modal__panel--settings" role="dialog" aria-modal="true" aria-label="설정">
+      <button class="modal__x" type="button" data-close aria-label="닫기">×</button>
+      <div class="modal__header">
+        <span class="modal__eyebrow">SETTINGS</span>
+        <h2 class="modal__title">설정</h2>
+        <p class="modal__lead">사운드 볼륨을 조절하세요. 변경 즉시 저장돼요.</p>
+      </div>
+      <div class="set-rows">
+        <label class="set-row">
+          <span class="set-row__label">🎵 배경음</span>
+          <input class="set-slider" type="range" min="0" max="100" value="${pct(audio.bgmVolume)}" data-kind="bgm" />
+          <span class="set-row__val" data-val="bgm">${pct(audio.bgmVolume)}%</span>
+        </label>
+        <label class="set-row">
+          <span class="set-row__label">🔊 효과음</span>
+          <input class="set-slider" type="range" min="0" max="100" value="${pct(audio.sfxVolume)}" data-kind="sfx" />
+          <span class="set-row__val" data-val="sfx">${pct(audio.sfxVolume)}%</span>
+        </label>
+      </div>
+      <button class="btn btn--primary modal__close" data-close>닫기</button>
+    </div>`;
+
+  modal.addEventListener('input', (e) => {
+    const slider = e.target.closest('.set-slider');
+    if (!slider) return;
+    const v = Number(slider.value) / 100;
+    if (slider.dataset.kind === 'bgm') audio.setBgmVolume(v);
+    else                               audio.setSfxVolume(v);
+    modal.querySelector(`[data-val="${slider.dataset.kind}"]`).textContent = `${Math.round(v * 100)}%`;
+  });
+  // 효과음 슬라이더를 놓는 순간 현재 레벨로 미리듣기
+  modal.addEventListener('change', (e) => {
+    if (e.target.closest('.set-slider')?.dataset.kind === 'sfx') audio.playSfx('click');
+  });
+  modal.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) closeControls(overlay);
+  });
+  overlay.appendChild(modal);
 }
 
 function escapeHtml(str) {

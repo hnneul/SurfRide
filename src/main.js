@@ -7,6 +7,7 @@ import WorldMapScene  from './scenes/WorldMapScene.js';
 import GameScene      from './scenes/GameScene.js';
 import PauseScene     from './scenes/PauseScene.js';
 import ResultScene    from './scenes/ResultScene.js';
+import { audio }      from './audio.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -22,4 +23,5 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
+audio.init();   // 사운드: 볼륨 시드 + SFX 디코드 + 첫 제스처에 오디오 언락
 if (import.meta.env.DEV) window.game = game;   // 개발용 디버그 접근 (프로덕션 빌드엔 미포함)
