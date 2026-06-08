@@ -1,6 +1,6 @@
 // 인게임 HUD DOM 오버레이 (Three 캔버스 위). 게임 로직은 안 건드리고
 // GameScene 상태를 매 프레임 읽어 "표시만" 한다. mountHud() → { update(state), flash(), destroy() }.
-import { BALANCE } from '../constants.js';
+import { BALANCE, BALANCE_ON } from '../constants.js';
 
 export function mountHud(parent = document.getElementById('game-container')) {
   const root = document.createElement('div');
@@ -12,6 +12,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
     <div class="hud__wind"></div>
     <div class="hud__danger"></div>
     <div class="hud__bigwave-edge"></div>
+    <div class="hud__barrel-edge"></div>
     <div class="hud__top">
       <div class="hud__hearts"></div>
       <div class="hud__center">
@@ -41,6 +42,8 @@ export function mountHud(parent = document.getElementById('game-container')) {
     </div>
     <div class="hud__danger-label" hidden>⚠ 위험 구간 ×1.5</div>
     <div class="hud__bigwave" hidden></div>
+    <div class="hud__barrel" hidden></div>
+    <div class="hud__barrel-meter" hidden><div class="hud__barrel-meter-fill"></div></div>
     <div class="hud__tutorial" hidden></div>
     <div class="hud__balance">
       <span class="hud__balance-label">BALANCE</span>
@@ -52,6 +55,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
     </div>
   `;
   parent.appendChild(root);
+  if (!BALANCE_ON) root.querySelector('.hud__balance').style.display = 'none';   // [실험] 밸런스 끄면 바 숨김
 
   const el = {
     flash:        root.querySelector('.hud__flash'),
@@ -60,6 +64,10 @@ export function mountHud(parent = document.getElementById('game-container')) {
     dangerLabel:  root.querySelector('.hud__danger-label'),
     bigwave:      root.querySelector('.hud__bigwave'),
     bigwaveEdge:  root.querySelector('.hud__bigwave-edge'),
+    barrel:        root.querySelector('.hud__barrel'),
+    barrelEdge:    root.querySelector('.hud__barrel-edge'),
+    barrelMeter:   root.querySelector('.hud__barrel-meter'),
+    barrelMeterFill: root.querySelector('.hud__barrel-meter-fill'),
     hearts:       root.querySelector('.hud__hearts'),
     timer:        root.querySelector('.hud__timer'),
     stage:        root.querySelector('.hud__stage'),
@@ -102,7 +110,9 @@ export function mountHud(parent = document.getElementById('game-container')) {
 
     // 점수 · 콤보
     el.score.textContent = s.score.toLocaleString();
-    el.combo.textContent = s.combo > 0 ? `COMBO ×${s.combo}` : '';
+    el.combo.textContent = s.combo > 0
+      ? `COMBO ×${s.combo}${s.comboMul > 1 ? ` · 점수 ×${s.comboMul.toFixed(1)}` : ''}`
+      : '';
 
     // 퍼펙트 점프 누적 — 늘어난 순간만 팝 강조
     const pj = s.perfectJumps ?? 0;
@@ -133,14 +143,35 @@ export function mountHud(parent = document.getElementById('game-container')) {
       el.bigwave.hidden = false;
       el.bigwave.classList.toggle('is-warn', !!bw.warn);
       el.bigwave.classList.toggle('is-riding', !!bw.riding);
+      const arrow  = bw.side === 'left' ? '←' : '→';
+      const sideKo = bw.side === 'left' ? '왼쪽' : '오른쪽';
       el.bigwave.textContent = bw.warn
-        ? '🌊 큰 파도가 온다!'
-        : (bw.riding ? '🏄 마루 타는 중!' : '🌊 마루를 따라가!');
+        ? `🌊 큰 파도! ${arrow} ${sideKo}에서 타!`
+        : (bw.riding ? '🏄 파도 타는 중!' : `${arrow} ${sideKo}으로 가서 타!`);
       el.bigwaveEdge.classList.add('is-active');
       el.bigwaveEdge.classList.toggle('is-riding', !!bw.riding);
     } else {
       el.bigwave.hidden = true;
       el.bigwaveEdge.classList.remove('is-active', 'is-riding');
+    }
+
+    // 배럴(튜브 라이딩) — 예고 배너 + 터널 비네트(튜브 안일수록 조임) + 품질 미터
+    const br = s.barrel;
+    if (br && (br.warn || br.active)) {
+      el.barrel.hidden = false;
+      el.barrel.classList.toggle('is-warn', !!br.warn);
+      el.barrel.classList.toggle('is-tubed', !!br.tubed);
+      el.barrel.textContent = br.warn
+        ? '🌊 파도가 말린다 — ↓로 올라타!'
+        : (br.tubed ? '🤙 유후~ 서핑 즐기는 중!' : '⬇ ↓ 눌러 파도에 올라타!');
+      el.barrelEdge.classList.toggle('is-active', !!br.active);
+      el.barrelEdge.classList.toggle('is-tubed', !!br.tubed);
+      el.barrelMeter.hidden = !br.active;
+      el.barrelMeterFill.style.width = `${Math.round((br.quality ?? 0) * 100)}%`;
+    } else {
+      el.barrel.hidden = true;
+      el.barrelEdge.classList.remove('is-active', 'is-tubed');
+      el.barrelMeter.hidden = true;
     }
 
     const effect = s.stageEffect ?? {};
@@ -168,12 +199,13 @@ export function mountHud(parent = document.getElementById('game-container')) {
 
     const wipeoutAt = s.wipeoutAt ?? BALANCE.WIPEOUT_AT;
     const safeFrac = BALANCE.WARN_AT / wipeoutAt;
-    el.safe.style.left  = `${50 - safeFrac * 50}%`;
-    el.safe.style.width = `${safeFrac * 100}%`;
+    // 세로 밸런스바 — 안전 영역(중앙) + 마커를 top%로 (가로→세로 전환)
+    el.safe.style.top    = `${50 - safeFrac * 50}%`;
+    el.safe.style.height = `${safeFrac * 100}%`;
 
-    // 밸런스 마커 — tilt[-WIPEOUT..WIPEOUT] → 0~100%
+    // 밸런스 마커 — tilt[-WIPEOUT..WIPEOUT] → 위(0%)~아래(100%). ↑=위(tilt-) / ↓=아래(tilt+)
     const t = Math.max(-1, Math.min(1, s.tilt / wipeoutAt));
-    el.marker.style.left = `${50 + t * 50}%`;
+    el.marker.style.top = `${50 + t * 50}%`;
     el.marker.classList.toggle('is-warn', Math.abs(s.tilt) >= BALANCE.WARN_AT);
   }
 
@@ -217,7 +249,7 @@ export function mountHud(parent = document.getElementById('game-container')) {
     flash,
     perfectJump,
     trick,
-    toast: showToast,   // 큰 파도·균형 회복 등 일반 보상 토스트
+    toast: showToast,
     destroy() {
       if (perfectToastTimer) clearTimeout(perfectToastTimer);
       root.remove();

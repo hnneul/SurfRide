@@ -7,6 +7,7 @@ import { StorageManager } from '../storage.js';
 import { STAGES } from '../stages.js';
 import { GoldenFishManager } from '../goldenFish.js';
 import { BigWaveManager } from '../bigWaves.js';
+import { BarrelManager } from '../barrel.js';
 import { StageGimmickManager } from '../stageGimmicks.js';
 import { ThreeLayer } from '../three/ThreeLayer.js';
 import { mountHud } from '../ui/hudDom.js';
@@ -20,12 +21,12 @@ import { mountPause } from '../ui/pauseDom.js';
 // three.render()로 렌더만 위임하며, 충돌·점수 등 판정은 전부 2D 매니저가 그대로 수행한다.
 
 const TUTORIAL_STEPS = [
-  { until:  3400, text: '↑ ↓ 방향키로 파도를 타고 오르내려요' },
-  { until:  7000, text: '← → 로 균형을 잡으세요 — 무너지면 와이프아웃!' },
-  { until: 10400, text: '신호가 뜬 자리에서 장애물이 솟구쳐요. 미리 피하세요' },
-  { until: 13600, text: 'Space 로 점프 — 공중에선 드리프트가 멈춰요(균형은 그대로!)' },
-  { until: 17400, text: '점프 중 ← → 로 스핀! 똑바로 착지하면 트릭 점수 +' },
-  { until: 20800, text: '장애물을 스치듯 피하면 아슬아슬 보너스!' },
+  { until:  3400, text: '← → 로 좌우로 움직여 장애물을 피해요' },
+  { until:  7800, text: '↑ ↓ 로 파도 면을 오르내려요 — 위로 갈수록 빠르고 점수 ×1.5!' },
+  { until: 11200, text: '위(마루)는 장애물이 솟는 곳 — 위험하지만 고득점, 아래(어깨)는 안전·저득점' },
+  { until: 14400, text: 'Space 로 점프 — 낮은 장애물을 뛰어넘어요' },
+  { until: 18200, text: 'Shift 로 잠수 — 위에 뜬 장애물 아래로 통과!' },
+  { until: 21600, text: '장애물을 스치듯 피하면 아슬아슬 보너스 + 콤보!' },
 ];
 
 export default class GameScene extends Phaser.Scene {
@@ -56,9 +57,7 @@ export default class GameScene extends Phaser.Scene {
     this.stageGimmickManager = new StageGimmickManager(this);
     this.stageGimmicks       = this.stageGimmickManager.fx;   // player·Three·HUD가 공유하는 fx blackboard
     this.bigWaveManager      = new BigWaveManager(this);
-    this._balanceWarned = false;
-    this._clutchCdMs    = 0;
-
+    this.barrelManager       = new BarrelManager(this);
     this.cursors  = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.pKey     = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
@@ -115,10 +114,11 @@ export default class GameScene extends Phaser.Scene {
     this._updateWeather();
     this.stageGimmickManager.update(dt);
     this.bigWaveManager.update(dt);   // 큰 파도(예고→통과→마루 타기 보상) — stageGimmicks.balanceDrift에 흔들림 가산
+    this.barrelManager.update(dt);    // 배럴(튜브 라이딩) — 포켓 커밋 유지 시 대점수, 피격 시 붕괴
+    this.stageGimmicks.barrelTucked = this.barrelManager.tubed;   // 배럴에 ↓로 박힌 동안 서퍼 세로 고정(제자리 튜브)
     this.player.update(dt, this.cursors, this.spaceKey, this.stageGimmicks);
     if (this.player.trickLanded)       this._onTrick();
     else if (this.player.trickBotched) this._onTrickBotch();
-    this._updateBalanceClutch(dt);   // 균형이 무너지기 직전 회복하면 보상(위험-보상)
     this.obstacleManager.update(dt, this.stageTimer, this.player);
     const caught = this.goldenFish.update(dt, this.player);
     for (let i = 0; i < caught; i++) this.scoreManager.onGoldenFish();
@@ -153,6 +153,7 @@ export default class GameScene extends Phaser.Scene {
       cursors:      this.cursors,
       obstacles:    this.obstacleManager.obstacles,
       signals:      this.obstacleManager.signals,
+      barrel:       this.barrelManager.tube(),
       goldenFishes: this.goldenFish.fishes,
       reef: this.stageGimmicks?.reefActive
         ? { topY: this.stageGimmicks.laneTopY, bottomY: this.stageGimmicks.laneBottomY,
@@ -167,6 +168,7 @@ export default class GameScene extends Phaser.Scene {
       wipeoutAt:    this.stageGimmicks?.balanceWipeoutAt ?? undefined,
       score:        this.scoreManager.total,
       combo:        this.scoreManager.combo,
+      comboMul:     this.scoreManager.comboMultiplier,
       perfectJumps: this.scoreManager.perfectJumps,
       remainSec:    Math.max(0, (this.obstacleManager._stageDuration - this.stageTimer) / 1000),
       stageId:      this.stage.id,
@@ -177,6 +179,7 @@ export default class GameScene extends Phaser.Scene {
       progress:     Math.min(this.stageTimer / this.obstacleManager._stageDuration, 1),
       danger:       this.player.inDanger,
       bigWave:      this.bigWaveManager.hud(),
+      barrel:       this.barrelManager.hud(),
       tutorialText: this._tutorialActive
         ? (TUTORIAL_STEPS.find((s) => this.stageTimer < s.until)?.text ?? null)
         : null,
@@ -187,6 +190,7 @@ export default class GameScene extends Phaser.Scene {
   _onHit(obstacle) {
     const dead = this.player.takeHit();
     this.scoreManager.onComboBreak();
+    this.barrelManager?.onPlayerHit();   // 배럴 도중 피격 → 튜브 붕괴(마무리 보너스 날림)
     this.cameras.main.shake(dead ? 320 : 180, dead ? 0.012 : 0.008);
     this.cameras.main.flash(140, 255, 90, 90, false);
     this.three?.shake(dead ? 320 : 180, dead ? 0.012 : 0.008);
@@ -287,24 +291,6 @@ export default class GameScene extends Phaser.Scene {
       this.cameras.main.shake(260, 0.005);
       this.three?.shake(260, 0.005);
       this.hud?.flash(120, 150, 220, 220);
-    }
-  }
-
-  // 균형이 경고 영역까지 갔다가 안정으로 회복하면 클러치 보상(지상 한정·쿨다운으로 악용 방지).
-  _updateBalanceClutch(dt) {
-    this._clutchCdMs = Math.max(0, this._clutchCdMs - dt);
-    const tiltAbs = Math.abs(this.player.tilt);
-    if (tiltAbs >= BALANCE.WARN_AT) {
-      this._balanceWarned = true;
-    } else if (this._balanceWarned && this.player.isGrounded &&
-               tiltAbs < BALANCE.WARN_AT * 0.45 && this._clutchCdMs <= 0 && !this.player.wiped) {
-      this._balanceWarned = false;
-      this._clutchCdMs = 2_500;
-      const pts = this.scoreManager.onBalanceClutch(this.player.baseY);
-      this.three?.surferSplash(1.2, 0x9ffce0);
-      this.cameras.main.flash(90, 120, 255, 200, false);
-      this.hud?.flash(150, 255, 220, 110);
-      this.hud?.toast('균형 회복!', `+${pts}`);
     }
   }
 

@@ -3,6 +3,7 @@ import { disposeObject } from './bridge.js';
 import { World } from './world.js';
 import { Surfer } from './surfer.js';
 import { Obstacles } from './obstacles.js';
+import { BarrelTube } from './barrel.js';
 import { Signals } from './signals.js';
 import { GoldenFishLayer } from './goldenFish.js';
 import { Reef } from './reef.js';
@@ -41,6 +42,7 @@ export class ThreeLayer {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(58, w / h, 0.1, 1000);
     this._camZ = 5;                        // 부드럽게 추종할 서퍼 깊이(z)의 평활값
+    this._barrelCam = 0;                   // 배럴에 박힌 동안 카메라 당김(0~1) 평활값
     this.camera.position.set(-6, 4.4, 17);
     this.camera.lookAt(-6, 1.2, 1);
 
@@ -48,6 +50,7 @@ export class ThreeLayer {
     this.world      = new World(this.scene, themeKey);
     this.surfer     = new Surfer(this.scene);
     this.obstacles  = new Obstacles(this.scene);
+    this.barrel     = new BarrelTube(this.scene);
     this.signals    = new Signals(this.scene);
     this.goldenFish = new GoldenFishLayer(this.scene);
     this.reef       = new Reef(this.scene);
@@ -65,6 +68,7 @@ export class ThreeLayer {
       this.surfer.update(state.player, state.cursors, this.t, this.world);
       this.signals.sync(state.signals, this.t, this.world);
       this.obstacles.sync(state.obstacles, this.t, this.world);
+      this.barrel.sync(state.barrel, this.surfer, this.t, dtMs);
       this.goldenFish.sync(state.goldenFishes, this.t, this.world);
       this.reef.sync(state.reef);
       this.spray.emitWake(this.surfer, state.player, dtMs);
@@ -86,7 +90,9 @@ export class ThreeLayer {
   // 흔들림(fx)은 기준 위치 '위에' 더한다.
   _updateCamera(dtMs, state) {
     const s = this.surfer;
-    const sx = s.pos?.x ?? -6;
+    const CAM_BASE_X = -6.4;                               // 서퍼 기준 열(ERUPT_X 월드 x)
+    const sxRaw = s.pos?.x ?? CAM_BASE_X;
+    const sx = CAM_BASE_X + (sxRaw - CAM_BASE_X) * 0.35;   // 부분 추종 → 좌우 카빙이 화면에 보임
     const sz = s.pos?.z ?? 5;
     const sy = s.pos?.y ?? 0.7;
     const k = Math.min(1, 0.06 * (dtMs / 16.667));
@@ -95,9 +101,22 @@ export class ThreeLayer {
     const jumpLift = Math.max(0, state?.player?.jumpOffset ?? 0) / 90 * 0.22;
     const o = this.fx.getOffset(dtMs);
 
-    this.camera.position.set(sx + o.x, 4.4 + jumpLift + o.y, 16.8 + this._camZ * 0.16);
+    // 배럴에 박혀 있을 때 카메라를 살짝 당겨 '튜브가 감싸는' 느낌(제자리 박힘 강조).
+    const barrelTgt = state?.barrel?.tubed ? 1 : 0;
+    this._barrelCam += (barrelTgt - this._barrelCam) * Math.min(1, 0.1 * (dtMs / 16.667));
+    const bc = this._barrelCam;
+
+    this.camera.position.set(sx + o.x, 4.4 + jumpLift + o.y - bc * 0.9, 16.8 + this._camZ * 0.16 - bc * 3.2);
     this.camera.up.set(o.roll, 1, 0);
-    this.camera.lookAt(sx, 1.2 + sy * 0.12, this._camZ - 4.5);
+    this.camera.lookAt(sx, 1.2 + sy * 0.12 + bc * 0.25, this._camZ - 4.5);
+
+    // 속도감 — 파도 면을 내려탈수록(포켓) FOV를 살짝 넓혀 '확 빨라지는' 러시를 준다.
+    const speed = state?.player?.speed ?? 0;
+    const fov = 58 + speed * 8;
+    if (Math.abs(this.camera.fov - fov) > 0.05) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   // 카메라 흔들림 트리거 (피격·기상이변·위험구간·큰 파도·퍼펙트)
@@ -123,6 +142,7 @@ export class ThreeLayer {
     disposeObject(this.scene);
     this.world.dispose?.();
     this.obstacles.dispose();
+    this.barrel.dispose();
     this.signals.dispose();
     this.goldenFish.dispose();
     this.reef.dispose();

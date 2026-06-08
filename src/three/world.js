@@ -42,6 +42,58 @@ const SEA3D_OVERRIDE = {
   jeju: [0x007fa7, 0x08b6c6, 0x31ded7],
 };
 
+const SCENIC_STAGE_SET = {
+  jeju: {
+    backdropUrl: '/stage-1-jeju-scenic-loop.png',
+    backdropRepeatX: 0.5,
+  },
+  jeju_coast: {
+    backdropUrl: '/stage-2-coral-waterway-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  south_jeju: {
+    backdropUrl: '/stage-3-ancient-gate-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  east_china_sea: {
+    backdropUrl: '/stage-4-mushroom-coral-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  okinawa: {
+    backdropUrl: '/stage-5-shipwreck-reef-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  philippines: {
+    backdropUrl: '/stage-6-crystal-cave-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  pacific_night: {
+    backdropUrl: '/stage-7-mariana-abyss-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  volcanic: {
+    backdropUrl: '/stage-8-volcanic-island-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  storm: {
+    backdropUrl: '/stage-9-storm-vortex-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+  final: {
+    backdropUrl: '/stage-10-pacific-temple-loop.png',
+    backdropRepeatX: 0.5,
+    backdropScrollSpeed: 0.014,
+  },
+};
+
 // 스테이지 배경 이미지(픽셀아트) 토글. 테마에 경로를 넣으면 절차적 3D 바다·하늘·섬·구름을 전부
 // 생략하고 그 이미지를 화면 전체 백드롭(scene.background)으로 깐다(서퍼·장애물 등 액터는 위에).
 // 단점: 정적이라 파도·구름이 안 움직임 → 기본은 비활성(절차적 움직이는 바다 사용).
@@ -59,10 +111,12 @@ export class World {
     this.theme = BACKGROUND_THEMES[themeKey] ?? BACKGROUND_THEMES.jeju;
     this.swell = this.theme.swell ?? 1;   // 잔잔(1.0) ~ 괴물 파도(1.75)
     this.backdropUrl = STAGE_BACKDROP[themeKey] ?? null;   // 이미지 백드롭 테마면 절차적 배경 생략
+    this.scenicStageSet = SCENIC_STAGE_SET[themeKey] ?? null;
     this.stageSet = null;
     this.waveParams = this._resolveWaveParams();
     this._t = 0;                          // 마지막 update 시간(샘플러 기본값)
     this.bigWave = null;                  // 큰 파도 이벤트 상태(없으면 null)
+    this.bigWavePocketX = null;           // 활성 시 포켓 중심(월드 x) — 한쪽에만 솟음
 
     this._applyAtmosphere();
     this._buildLighting();
@@ -70,8 +124,8 @@ export class World {
       this._buildImageBackdrop();   // 픽셀아트 전체 배경 — 3D 바다·하늘·섬·구름 미생성
     } else {
       this._buildMainOcean();
-      this._buildBackground();
-      if (this.themeKey === 'jeju') this.stageSet = new JejuStageSet(this.scene);
+      if (!this.scenicStageSet) this._buildBackground();
+      if (this.scenicStageSet) this.stageSet = new JejuStageSet(this.scene, this.scenicStageSet);
     }
   }
 
@@ -127,10 +181,12 @@ export class World {
 
   // 밤 우선(final=night+storm 둘 다라 밤 채택).
   _lightingForTheme(th) {
-    if (th.night)        return { ambColor: 0x9fb0da, ambI: 2.8, dirColor: 0x9aabd6, dirI: 0.6 };
-    if (th.storm)        return { ambColor: 0xbcc6cf, ambI: 2.8, dirColor: 0xaab4be, dirI: 0.6 };
-    if (th.volcanicGlow) return { ambColor: 0xe2b8a0, ambI: 2.8, dirColor: 0xffb070, dirI: 0.65 };
-    return { ambColor: 0xffffff, ambI: 2.8, dirColor: 0xffffff, dirI: 0.7 };   // 주간
+    // 앰비언트를 낮추고 방향광을 키워 파도 경사가 빛/그늘을 받게 한다 → 입체감.
+    // 밤/폭풍은 가독성 위해 앰비언트 하한을 조금 더 높게 유지.
+    if (th.night)        return { ambColor: 0x9fb0da, ambI: 2.0, dirColor: 0xaebbe0, dirI: 1.5 };
+    if (th.storm)        return { ambColor: 0xbcc6cf, ambI: 2.1, dirColor: 0xbac4ce, dirI: 1.4 };
+    if (th.volcanicGlow) return { ambColor: 0xe2b8a0, ambI: 1.9, dirColor: 0xffb070, dirI: 1.7 };
+    return { ambColor: 0xffffff, ambI: 1.5, dirColor: 0xffffff, dirI: 2.2 };   // 주간
   }
 
   // ── 파동장 샘플러 ── 메인 수면 메시·서퍼·장애물이 공유하는 단일 진실. 같은 함수로
@@ -157,6 +213,34 @@ export class World {
     };
   }
 
+  // 하늘 그라데이션 환경맵 — 평면 반사(2차 렌더) 없이 수면이 하늘·태양을 비추게 한다.
+  // flatShading facet마다 노멀 각도로 하늘을 샘플 → 파도가 일렁이며 하늘빛·태양 글린트를 반사.
+  // 색은 테마 sky(천정→수평선)에서 뽑아 씬과 톤을 맞춘다.
+  _buildSkyEnv() {
+    const sky = this.theme.sky ?? [0x89d9ff, 0x46a9d6, 0x1e78b8];
+    const hex = (c) => '#' + new THREE.Color(c).getHexString();
+    const cv = document.createElement('canvas');
+    cv.width = 256; cv.height = 128;
+    const ctx = cv.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0.0, hex(sky[0]));            // 천정
+    g.addColorStop(0.5, hex(sky[1] ?? sky[0]));
+    g.addColorStop(0.72, hex(sky[2] ?? sky[0])); // 수평선
+    g.addColorStop(1.0, '#0a3550');              // 아래(어두운 물 반사)
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 128);
+    if ((this.theme.sun ?? 0) > 0) {             // 주간: 태양 글린트(밝은 반점)
+      const sx = 256 * 0.62, sy = 128 * 0.3, r = 28;
+      const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+      sg.addColorStop(0, 'rgba(255,250,220,0.95)');
+      sg.addColorStop(1, 'rgba(255,250,220,0)');
+      ctx.fillStyle = sg; ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   // 메인 수면 — 넓고 깊은 평면 하나를 매 프레임 파동장으로 변위. 정점색은 원경(짙음)→근경(밝음)
   // 그라데이션. jeju는 살짝 반투명(opacity<1)으로 사진 수평선이 먼 가장자리에서 비쳐 어우러진다.
   _buildMainOcean() {
@@ -177,8 +261,11 @@ export class World {
 
     // 불투명 — 깊이를 써서 서퍼/장애물이 마루 뒤로 깔끔히 가려지고(서핑감) 마루 위에선 또렷이 보인다.
     // (반투명이면 가까운 물이 서퍼 위로 비쳐 '물에 잠긴 유령'처럼 보였다.) 사진 백드롭은 수면 위로 비침.
-    const mat = new THREE.MeshLambertMaterial({
+    this.skyEnv = this._buildSkyEnv();   // 하늘 반사용 환경맵(저비용, 2차 렌더 없음)
+    const mat = new THREE.MeshStandardMaterial({
       vertexColors: true, flatShading: true,
+      metalness: 0.45, roughness: 0.30,
+      envMap: this.skyEnv, envMapIntensity: 1.5,   // 수면이 하늘·태양을 반사(글로시 워터)
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(def.cx, WATER_Y, def.cz);
@@ -188,7 +275,13 @@ export class World {
     const wx = new Float32Array(pos.count);
     const wz = new Float32Array(pos.count);
     for (let i = 0; i < pos.count; i++) { wx[i] = def.cx + pos.getX(i); wz[i] = def.cz + pos.getZ(i); }
-    this.ocean = { mesh, geo, pos, wx, wz };
+    this.ocean = {
+      mesh, geo, pos, wx, wz,
+      col: geo.attributes.color,
+      baseCol: new Float32Array(cols),                            // 높이 변조 전 기준색(원경→근경)
+      crest: new THREE.Color(0xcdeeff),                           // 마루 하이라이트(하늘 반사) 색
+      amp: this.waveParams.swellAmp + this.waveParams.swell2Amp,  // 높이 정규화 기준
+    };
 
     this._buildFoamCrests();
   }
@@ -336,15 +429,27 @@ export class World {
   // 백드롭 텍스처는 scene.background라 disposeObject(씬 자식 순회) 대상이 아님 — 직접 해제.
   dispose() {
     this.backdropTex?.dispose();
+    this.skyEnv?.dispose();
     this.stageSet?.dispose();
   }
 
   // 메인 수면 변위 — 캐시한 정점 월드 (x,z)를 sampleWaveHeight에 넣어 마루를 만든다.
   // mesh.position.y=WATER_Y이므로 정점 y엔 파고만 싣는다(액터도 WATER_Y+파고에 얹혀 정확히 일치).
   _animateMainOcean(t) {
-    const { pos, wx, wz } = this.ocean;
-    for (let i = 0; i < pos.count; i++) pos.setY(i, this.sampleWaveHeight(wx[i], wz[i], t));
+    const { pos, wx, wz, col, baseCol, crest, amp } = this.ocean;
+    for (let i = 0; i < pos.count; i++) {
+      const h = this.sampleWaveHeight(wx[i], wz[i], t);
+      pos.setY(i, h);
+      // 높이로 정점색 변조: 마루는 밝은 시안(하늘 반사)으로, 골은 어둡게 → 입체 깊이감.
+      let n = h / amp; n = n < -1 ? -1 : n > 1 ? 1 : n;
+      const j = i * 3;
+      let r = baseCol[j], g = baseCol[j + 1], b = baseCol[j + 2];
+      if (n > 0) { const m = n * 0.55; r += (crest.r - r) * m; g += (crest.g - g) * m; b += (crest.b - b) * m; }
+      else       { const d = 1 + n * 0.38; r *= d; g *= d; b *= d; }
+      col.setXYZ(i, r, g, b);
+    }
     pos.needsUpdate = true;
+    col.needsUpdate = true;
     this._animateFoamCrests(t);
   }
 
@@ -379,34 +484,39 @@ export class World {
   // ─── 큰 파도 이벤트 ────────────────────────────────────────────────────────────
   // 평소 너울 위에 '진행하는 거대 마루'를 더한다. 원경(작은 z)에서 근경(큰 z=서퍼)으로 밀려온다.
   // GameScene이 trigger로 켜고, sampleWaveHeight에 가산돼 서퍼·장애물·수면이 함께 솟는다.
+  // 좌우 포켓형 큰 파도 — 화면 '한쪽(pocketX)'에만 거대 너울이 솟고 나머지는 평평.
+  // 플레이어가 그 x-구역에 들어가 타게 한다(판정은 bigWaves.js). env로 차올랐다 빠진다.
   triggerBigWave(opts = {}) {
     this.bigWave = {
-      amp:   opts.amp   ?? (1.5 + (this.swell - 1) * 0.7),
-      width: opts.width ?? 3.0,
-      durMs: opts.durMs ?? 5200,
-      fromZ: -8, toZ: 13,
-      ageMs: 0, frontZ: -8, env: 0,
+      amp:     opts.amp     ?? (1.6 + (this.swell - 1) * 0.7),
+      pocketX: opts.pocketX ?? -4.4,   // 포켓 중심(월드 x)
+      pocketW: opts.pocketW ?? 1.8,    // 포켓 가로 폭(Gaussian σ, 월드u)
+      durMs:   opts.durMs   ?? 5200,
+      ageMs: 0, env: 0,
     };
     this.bigWaveProgress = 0;
-    this.bigWaveCrestZ = -8;
+    this.bigWavePocketX = this.bigWave.pocketX;
   }
 
   _updateBigWave(dtMs) {
     const bw = this.bigWave;
-    if (!bw) { this.bigWaveProgress = 0; this.bigWaveCrestZ = null; return; }
+    if (!bw) { this.bigWaveProgress = 0; this.bigWavePocketX = null; return; }
     bw.ageMs += dtMs;
     const k = Math.min(1, bw.ageMs / bw.durMs);
-    bw.frontZ = bw.fromZ + (bw.toZ - bw.fromZ) * k;
     bw.env = Math.sin(k * Math.PI);                  // 0→1→0 부드러운 차오름·빠짐
     this.bigWaveProgress = k;
-    this.bigWaveCrestZ = bw.frontZ;
+    this.bigWavePocketX = bw.pocketX;
     if (k >= 1) this.bigWave = null;
   }
 
+  // 포켓 x 중심으로만 솟는 덩어리(전폭 벽이 아니라 한쪽). z는 플레이 깊이(≈6) 근처에 완만히.
   _bigWaveHeight(x, z) {
     const bw = this.bigWave;
-    const d = z - bw.frontZ;
-    return bw.amp * bw.env * Math.exp(-(d * d) / (bw.width * bw.width));
+    const dx = x - bw.pocketX;
+    const dz = z - 6;
+    const lateral = Math.exp(-(dx * dx) / (bw.pocketW * bw.pocketW));
+    const depth   = Math.exp(-(dz * dz) / (7 * 7));
+    return bw.amp * bw.env * lateral * depth;
   }
 
   _moveClouds() {

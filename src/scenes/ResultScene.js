@@ -3,6 +3,8 @@ import { LOGICAL_WIDTH, LOGICAL_HEIGHT } from '../constants.js';
 import { ScoreEvent } from '../score.js';
 import { OBSTACLE_META } from '../obstacle.js';
 import { STAGES } from '../stages.js';
+import { submitScore } from '../ranking.js';
+import { ensureNickname } from '../ui/rankingModal.js';
 
 /** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
 
@@ -65,8 +67,19 @@ export default class ResultScene extends Phaser.Scene {
     this._renderButtons(cx);
     this._installSkip();
     this._animate();
+    this._submitToLeaderboard();   // 온라인 랭킹 자동 등록(백그라운드)
 
     this.events.once('shutdown', this._teardown, this);
+  }
+
+  // 결과 화면 진입 시 점수를 Supabase 랭킹에 등록. 최초 1회만 닉네임 입력 다이얼로그가 뜨고,
+  // 이후엔 저장된 닉네임으로 조용히 등록된다. 실패는 게임 흐름에 영향 없음(throw 안 함).
+  async _submitToLeaderboard() {
+    try {
+      const nick = await ensureNickname();           // 닉네임 없으면 최초 1회 입력 받음
+      if (!nick || !this.sys?.isActive()) return;     // 입력 취소 / 씬 이탈 시 등록 생략
+      await submitScore(this.stageIndex + 1, this.summary?.total ?? 0);
+    } catch { /* 랭킹 등록 실패 무시 */ }
   }
 
   // 추적 헬퍼 — 모든 트윈/타이머는 반드시 이 배열을 거친다
@@ -286,7 +299,6 @@ export default class ResultScene extends Phaser.Scene {
       { label: '아슬아슬 보너스',   value: b[E.NEAR_MISS] },
       { label: `퍼펙트 점프 ×${s.perfectJumps}`, value: b[E.PERFECT_JUMP] },
       { label: `파도 타기 ×${s.bigWaves ?? 0}`, value: b[E.WAVE_RIDE] },
-      { label: `균형 회복 ×${s.clutches ?? 0}`, value: b[E.BALANCE_CLUTCH] },
       { label: '위험구간 보너스',   value: b[E.DANGER_LANE] },
       { label: `황금 물고기 ×${s.goldenFish ?? 0}`, value: b[E.GOLDEN_FISH] },
       { label: '기상이변 보너스 ×2', value: b[E.WEATHER_BONUS] },
@@ -683,7 +695,6 @@ export default class ResultScene extends Phaser.Scene {
       { ok: (s.perfectJumps ?? 0) >= 3,         w: 60 + (s.perfectJumps ?? 0),   label: '🎯 점프 감각 좋았어요',      color: TEAL },
       { ok: (s.bigWaves ?? 0) >= 1,             w: 55,                           label: '🌊 큰 파도 타기 성공',       color: TEAL },
       { ok: (s.dangerSeconds ?? 0) >= 8,        w: 50 + (s.dangerSeconds ?? 0),  label: '🔥 위험한 라인에서 버텼어요', color: ORANGE },
-      { ok: (s.clutches ?? 0) >= 2,             w: 45 + (s.clutches ?? 0) * 3,   label: '⚖️ 균형 감각이 좋았어요',     color: TEAL },
       { ok: (s.maxComboMultiplier ?? 1) >= 1.5, w: 40,                           label: '⚡ 콤보가 매서웠어요',        color: TEAL },
       { ok: (s.perfectJumps ?? 0) >= 1,         w: 30,                           label: '🎯 첫 퍼펙트 점프 성공',     color: TEAL },
       { ok: (s.nearMisses ?? 0) >= 1,           w: 20,                           label: '😮 아슬아슬하게 잘 피했어요', color: TEAL },

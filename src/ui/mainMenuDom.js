@@ -3,6 +3,7 @@
 
 import menuLogo from '../../img/surfride-logo-v3-cutout.png';
 import menuBackground from '../../img/main-menu-surf-dog.png';
+import { openRankingModal } from './rankingModal.js';
 
 const CONTROLS = [
   ['↑ / ↓', '파도 위아래로 이동하며 안전한 라인을 찾아요'],
@@ -30,6 +31,7 @@ export function mountMainMenu({ save, storage, stages, onStart, onContinue, onWo
         <button class="btn btn--primary" data-act="start">시작하기</button>
         <button class="btn btn--secondary" data-act="continue" ${hasPlayed ? '' : 'disabled'}>이어하기</button>
         <div class="btn-row">
+          <button class="btn btn--ghost" data-act="ranking">🏆 랭킹</button>
           <button class="btn btn--ghost" data-act="map">세계지도 보기</button>
           <button class="btn btn--ghost" data-act="controls">조작법 보기</button>
         </div>
@@ -51,6 +53,7 @@ export function mountMainMenu({ save, storage, stages, onStart, onContinue, onWo
       case 'start':    onStart(); break;
       case 'continue': onContinue(); break;
       case 'map':      onWorldMap(); break;
+      case 'ranking':  openRankingModal({ stageIndex: save?.currentStage ?? 0 }); break;
       case 'controls': openControls(overlay); break;
       case 'settings': /* 설정 화면은 추후 */ break;
     }

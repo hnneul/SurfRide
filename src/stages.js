@@ -60,7 +60,7 @@ export const STAGES = [
     id:          2,
     name:        '산호초 물길',
     theme:       'jeju_coast',
-    duration:    49_000,
+    duration:    65_000,   // 마지막 이벤트 t=62.8s + 회피 정산 여유(~2s)
     scrollSpeed: 540,
     difficulty: {
       telegraphMs:     1100,
@@ -76,7 +76,7 @@ export const STAGES = [
     id:          3,
     name:        '고대 관문 해역',
     theme:       'south_jeju',
-    duration:    53_000,
+    duration:    66_000,   // 마지막 이벤트 t=63.8s + 회피 정산 여유(~2s)
     scrollSpeed: 580,
     difficulty: {
       telegraphMs:     1100,
@@ -93,7 +93,7 @@ export const STAGES = [
     id:          4,
     name:        '버섯 산호섬',
     theme:       'east_china_sea',
-    duration:    57_000,
+    duration:    71_500,   // 마지막 이벤트 t=69.5s + 회피 정산 여유(~2s)
     scrollSpeed: 620,
     difficulty: {
       telegraphMs:     1000,
@@ -109,7 +109,7 @@ export const STAGES = [
     id:          5,
     name:        '난파선 암초',
     theme:       'okinawa',
-    duration:    61_000,
+    duration:    71_500,   // 마지막 이벤트 t=69.0s + 회피 정산 여유(~2s)
     scrollSpeed: 650,
     difficulty: {
       telegraphMs:     950,
@@ -126,7 +126,7 @@ export const STAGES = [
     id:          6,
     name:        '심해 수정 동굴',
     theme:       'philippines',
-    duration:    65_000,
+    duration:    73_500,   // 마지막 이벤트 t=71.5s + 회피 정산 여유(~2s)
     scrollSpeed: 700,
     difficulty: {
       telegraphMs:     950,
@@ -143,7 +143,7 @@ export const STAGES = [
     id:          7,
     name:        '마리아나 심연',
     theme:       'pacific_night',
-    duration:    69_000,
+    duration:    75_500,   // 마지막 이벤트 t=73.3s + 회피 정산 여유(~2s)
     scrollSpeed: 730,
     difficulty: {
       telegraphMs:     850,
@@ -160,12 +160,12 @@ export const STAGES = [
     id:          8,
     name:        '화산섬 해역',
     theme:       'volcanic',
-    duration:    73_000,
+    duration:    76_500,   // 마지막 이벤트 t=74.2s + 회피 정산 여유(~2s)
     scrollSpeed: 760,
     difficulty: {
       telegraphMs:     800,
       obstaclesPerMin: 32,
-      fakeSignalRate:  0.15,
+      fakeSignalRate:  0.16,
       compoundRate:    0.35,
       steam:           true,   // 화산 해역: 수증기가 주기적으로 시야를 흐림
     },
@@ -177,7 +177,7 @@ export const STAGES = [
     id:          9,
     name:        '폭풍 소용돌이',
     theme:       'storm',
-    duration:    77_000,
+    duration:    80_000,   // 마지막 이벤트 t=77.9s + 회피 정산 여유(~2s)
     scrollSpeed: 800,
     difficulty: {
       telegraphMs:     800,
@@ -194,7 +194,7 @@ export const STAGES = [
     id:          10,
     name:        '태평양 신전',
     theme:       'final',
-    duration:    80_000,
+    duration:    81_500,   // 마지막 이벤트 t=79.4s + 회피 정산 여유(~2s)
     scrollSpeed: 850,
     difficulty: {
       telegraphMs:     750,

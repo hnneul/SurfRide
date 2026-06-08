@@ -1,6 +1,4 @@
-import {
-  LOGICAL_WIDTH, RIDE_TOP_Y, RIDE_BOTTOM_Y,
-} from './constants.js';
+import { LOGICAL_WIDTH, RIDE_FIXED_Y } from './constants.js';
 
 const W = LOGICAL_WIDTH;
 
@@ -88,8 +86,8 @@ export class GoldenFishManager {
     this._timer += dtMs;
     if (this._timer >= this._nextSpawnMs) {
       this._timer = 0;
-      this._nextSpawnMs = 9000 + Math.random() * 8000;  // 다음 등장 간격
-      if (Math.random() < 0.7) this._spawn();            // 매번은 아님
+      this._nextSpawnMs = 6500 + Math.random() * 6000;  // 다음 등장 간격(좌우 수집 — 좀 더 자주)
+      if (Math.random() < 0.8) this._spawn();            // 매번은 아님
     }
 
     let collected = 0;
@@ -108,10 +106,9 @@ export class GoldenFishManager {
   }
 
   _spawn() {
-    const pad = 70;
-    const y = RIDE_TOP_Y + pad + Math.random() * (RIDE_BOTTOM_Y - RIDE_TOP_Y - pad * 2);
+    // 서퍼 깊이(고정)로 가로질러 지나가게 → 좌우(←/→)로 가서 잡는다.
     const speed = (this.scene.obstacleManager?.scrollSpeed ?? 600) * 0.62;
-    this.fishes.push(new GoldenFish(this.scene, y, speed));
+    this.fishes.push(new GoldenFish(this.scene, RIDE_FIXED_Y, speed));
   }
 
   _overlap(a, b) {
