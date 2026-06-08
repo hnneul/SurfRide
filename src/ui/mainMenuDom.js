@@ -7,13 +7,14 @@ import { openRankingModal } from './rankingModal.js';
 import { audio } from '../audio.js';
 
 const CONTROLS = [
-  ['↑ / ↓', '파도 위아래로 이동하며 안전한 라인을 찾아요'],
-  ['← / →', '보드 균형을 잡아요. 너무 기울면 와이프아웃!'],
-  ['Space', '점프로 장애물을 뛰어넘고 트릭 점수를 노려요'],
+  ['← / →', '좌우로 카빙하며 신호가 뜬 줄에서 벗어나요'],
+  ['↑ / ↓', '파도 마루와 어깨를 오가며 속도와 안전을 조절해요'],
+  ['Space', '낮게 튀는 장애물을 점프로 넘고 보너스를 노려요'],
+  ['Shift', '위에 뜬 장애물 아래로 잠수해서 통과해요'],
   ['P / ESC', '잠깐 멈추거나 다시 서핑을 이어가요'],
 ];
 
-export function mountMainMenu({ save, storage, stages, onStart, onContinue, onWorldMap }) {
+export function mountMainMenu({ save, storage, stages, onStart, onContinue, onTutorial, onWorldMap }) {
   const hasPlayed = !!save?.lastPlayedTime;
 
   const overlay = document.createElement('div');
@@ -31,8 +32,9 @@ export function mountMainMenu({ save, storage, stages, onStart, onContinue, onWo
       <nav class="menu-actions">
         <button class="btn btn--primary" data-act="start">시작하기</button>
         <button class="btn btn--secondary" data-act="continue" ${hasPlayed ? '' : 'disabled'}>이어하기</button>
+        <button class="btn btn--secondary" data-act="tutorial">튜토리얼 보기</button>
         <div class="btn-row">
-          <button class="btn btn--ghost" data-act="ranking">🏆 랭킹</button>
+          <button class="btn btn--ghost" data-act="ranking">랭킹</button>
           <button class="btn btn--ghost" data-act="map">세계지도 보기</button>
           <button class="btn btn--ghost" data-act="controls">조작법 보기</button>
         </div>
@@ -54,6 +56,7 @@ export function mountMainMenu({ save, storage, stages, onStart, onContinue, onWo
     switch (btn.dataset.act) {
       case 'start':    onStart(); break;
       case 'continue': onContinue(); break;
+      case 'tutorial': onTutorial(); break;
       case 'map':      onWorldMap(); break;
       case 'ranking':  openRankingModal({ stageIndex: save?.currentStage ?? 0 }); break;
       case 'controls': openControls(overlay); break;

@@ -21,6 +21,7 @@ export default class MainMenuScene extends Phaser.Scene {
       stages: STAGES,
       onStart:    () => this.scene.start('GameScene', { stageIndex: 0 }),
       onContinue: () => this.scene.start('GameScene', { stageIndex: save?.currentStage ?? 0 }),
+      onTutorial: () => this.scene.start('GameScene', { stageIndex: 0, forceTutorial: true }),
       onWorldMap: () => this.scene.start('WorldMapScene'),
     });
 

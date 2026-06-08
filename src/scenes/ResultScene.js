@@ -18,6 +18,19 @@ const GOLD   = '#ffd700';   // 힌트/격려/하이라이트
 const GAME_OVER_BG = 'game-over-night-ocean-neon';
 const STAGE_CLEAR_BG = 'stage-clear-ocean-pixel';
 
+// 게임오버 사인 문구 — 담백하게 "무슨 일이 있었는지"만 서술(타입별 후보 중 매번 랜덤)
+const COLLISION_QUIPS = {
+  SHARK:       ['상어에 부딪혔어요', '상어를 피하지 못했어요', '상어가 다가오는 걸 늦게 봤어요'],
+  WHALE:       ['고래에 부딪혔어요', '고래를 미처 피하지 못했어요', '고래가 수면 위로 올라왔어요'],
+  FLYING_FISH: ['날치 떼에 부딪혔어요', '날치 떼를 피하지 못했어요', '날치 떼가 한꺼번에 날아올랐어요'],
+  JELLYFISH:   ['해파리에 닿았어요', '해파리를 피하지 못했어요', '해파리가 진로에 떠 있었어요'],
+  OCTOPUS:     ['문어에 부딪혔어요', '문어를 피하지 못했어요', '문어가 발밑에서 솟아올랐어요'],
+  LIGHTNING:   ['번개를 피하지 못했어요', '번개가 가까이 떨어졌어요', '번개를 늦게 봤어요'],
+};
+const WIPEOUT_QUIPS = ['균형을 잃었어요', '중심을 잡지 못했어요', '파도에 휘청였어요'];
+
+const pickRandom = arr => arr[Math.floor(Math.random() * arr.length)];
+
 export default class ResultScene extends Phaser.Scene {
   constructor() { super({ key: 'ResultScene' }); }
 
@@ -264,12 +277,10 @@ export default class ResultScene extends Phaser.Scene {
     const board     = this.add.container(bx, by, [boardBody, stripe]);
     this._cause.push({ obj: board, apply: () => { board.angle = 0; } });
 
-    this.add.text(cx, y + 48, '← → 로 균형을 잡으세요', {
-      fontSize: '22px', fontFamily: 'sans-serif', color: '#b8d9ff',
-    }).setOrigin(0.5);
+    this._causeSub(cx, y, pickRandom(WIPEOUT_QUIPS));
   }
 
-  // 충돌: 장애물 이름을 크게 + 짧은 코믹 리액션(상단 밴드)
+  // 충돌: 장애물 이름을 크게 + 담백한 사실 서술(상단 밴드)
   _causeCollision(cx, y = 152) {
     const meta = this.hitObstacle ? OBSTACLE_META[this.hitObstacle.type] : null;
     const name = meta?.name ?? '장애물';
@@ -280,19 +291,35 @@ export default class ResultScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this._cause.push({ obj: big, apply: () => big.setAlpha(1).setScale(1) });
 
-    const QUIPS = {
-      SHARK:       '상어가 길막했어요',
-      WHALE:       '고래가 앞을 막았어요',
-      FLYING_FISH: '날치 떼가 덮쳤어요',
-      JELLYFISH:   '해파리에 감전됐어요',
-      OCTOPUS:     '문어가 발목을 잡았어요',
-      LIGHTNING:   '번개를 못 피했어요',
-    };
-    const quip = QUIPS[this.hitObstacle?.type] ?? `${name}에 부딪혔어요`;
-    const sub  = this.add.text(cx, y + 48, quip, {
+    const quips = COLLISION_QUIPS[this.hitObstacle?.type] ?? [`${name}에 부딪혔어요`];
+    this._causeSub(cx, y, pickRandom(quips));
+  }
+
+  // 사인 서브라인(1축) + 가끔만 등장하는 상황 서브라인(2축)
+  _causeSub(cx, y, quip) {
+    const sub = this.add.text(cx, y + 48, quip, {
       fontSize: '22px', fontFamily: 'sans-serif', color: '#b8d9ff',
     }).setOrigin(0.5);
     this._cause.push({ obj: sub, apply: () => sub.setAlpha(1).setY(y + 48) });
+
+    const flavor = this._flavorSubline();
+    if (flavor) {
+      const fl = this.add.text(cx, y + 80, flavor, {
+        fontSize: '17px', fontFamily: 'sans-serif', color: SOFT,
+      }).setOrigin(0.5);
+      this._cause.push({ obj: fl, apply: () => fl.setAlpha(1).setY(y + 80) });
+    }
+  }
+
+  // 2축: 진행/점수 흐름을 담담히 덧붙임 — 가끔만(40%) 등장
+  _flavorSubline() {
+    if (Math.random() > 0.4) return null;
+    const my = this.summary.total, pv = this.prevHigh ?? 0;
+    const survival = this.summary.breakdown?.[ScoreEvent.SURVIVAL] ?? 0;
+    if (my > pv && pv > 0) return '방금 최고 기록을 세웠어요';
+    if (this._isClose)     return '여기까지 잘 타고 있었어요';
+    if (survival < 100)    return '아직 출발선 근처였어요';
+    return null;
   }
 
   // ─── 데이터 모델(순수) ────────────────────────────────────────────────────────

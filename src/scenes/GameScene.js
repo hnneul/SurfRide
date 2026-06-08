@@ -13,6 +13,7 @@ import { ThreeLayer } from '../three/ThreeLayer.js';
 import { mountHud } from '../ui/hudDom.js';
 import { mountPause } from '../ui/pauseDom.js';
 import { audio, bgmForStage } from '../audio.js';
+import { mountTutorial } from '../ui/tutorialDom.js';
 
 /** @typedef {import('../types.js').GameSceneInit} GameSceneInit */
 /** @typedef {import('../types.js').ResultScenePayload} ResultScenePayload */
@@ -21,21 +22,92 @@ import { audio, bgmForStage } from '../audio.js';
 // 담당하고, Phaser 2D 캔버스 자체는 숨긴다(create에서 display:none). update()가 매 프레임
 // three.render()로 렌더만 위임하며, 충돌·점수 등 판정은 전부 2D 매니저가 그대로 수행한다.
 
-const TUTORIAL_STEPS = [
-  { until:  3400, text: '← → 로 좌우로 움직여 장애물을 피해요' },
-  { until:  7800, text: '↑ ↓ 로 파도 면을 오르내려요 — 위로 갈수록 빠르고 점수 ×1.5!' },
-  { until: 11200, text: '위(마루)는 장애물이 솟는 곳 — 위험하지만 고득점, 아래(어깨)는 안전·저득점' },
-  { until: 14400, text: 'Space 로 점프 — 낮은 장애물을 뛰어넘어요' },
-  { until: 18200, text: 'Shift 로 잠수 — 위에 뜬 장애물 아래로 통과!' },
-  { until: 21600, text: '장애물을 스치듯 피하면 아슬아슬 보너스 + 콤보!' },
-];
+const TUTORIAL_STEPS = Object.freeze({
+  move: {
+    title: '좌우로 파도를 타요',
+    body: '← / → 로 서퍼를 움직여 물보라가 생긴 줄에서 벗어나요.',
+    keys: ['←', '→'],
+  },
+  jumpFlyingFish: {
+    title: '물보라가 보이면 점프',
+    body: '날치는 낮게 튀어올라요. Space로 넘으면 퍼펙트 점프 보너스를 받아요.',
+    keys: ['Space'],
+  },
+  rideZone: {
+    title: '위쪽은 빠르고 위험해요',
+    body: '↑ 로 마루에 올라가면 점수가 커지고, ↓ 로 내려오면 더 안전해요.',
+    keys: ['↑', '↓'],
+  },
+  balance: {
+    title: '균형을 잃으면 와이프아웃',
+    body: 'BALANCE 마커가 끝까지 밀리기 전에 ↑ / ↓ 로 중심을 되찾아요.',
+    keys: ['↑', '↓'],
+  },
+  diveJellyfish: {
+    title: '해파리는 아래로 빠져나가요',
+    body: '해파리처럼 위에 뜬 장애물은 Shift를 누르고 잠수해서 통과해요.',
+    keys: ['Shift'],
+  },
+  moveShark: {
+    title: '상어는 점프로 피할 수 없어요',
+    body: '등지느러미가 보이면 좌우로 빠져나가요. 위치 이동이 먼저예요.',
+    keys: ['←', '→'],
+  },
+  moveWhale: {
+    title: '큰 그림자는 미리 비켜요',
+    body: '고래 그림자는 넓게 올라와요. 신호가 보이면 바로 안전한 쪽으로 이동해요.',
+    keys: ['←', '→'],
+  },
+  jumpOctopus: {
+    title: '문어 다리는 점프로 넘어요',
+    body: '다리 그림자가 솟으면 Space로 뛰어올라 지나가요.',
+    keys: ['Space'],
+  },
+  fakeSignal: {
+    title: '가짜 신호도 나와요',
+    body: '가끔 신호만 나타나고 공격이 오지 않아요. 끝까지 보고 다음 움직임을 정해요.',
+    keys: ['보기', '판단'],
+  },
+  moveLightning: {
+    title: '번개는 줄을 벗어나요',
+    body: '섬광이 보이면 그 줄에서 빠르게 벗어나요. 늦게 움직이면 피하기 어려워요.',
+    keys: ['←', '→'],
+  },
+  bigWave: {
+    title: '큰 파도는 타는 기회예요',
+    body: '화면 안내 방향으로 이동해 포켓에 머물면 큰 파도 보너스를 받아요.',
+    keys: ['←', '→'],
+  },
+  barrel: {
+    title: '파도가 말리면 버텨요',
+    body: '튜브가 열리면 ↓ 를 누르고 버티세요. 끝까지 유지하면 큰 보너스를 받아요.',
+    keys: ['↓'],
+  },
+  updraft: {
+    title: '상승기류는 점프를 키워요',
+    body: '빛나는 기류 안에서 점프하면 더 높이 떠올라 어려운 장애물을 넘기 쉬워요.',
+    keys: ['Space'],
+  },
+});
+
+const CORE_TUTORIAL_STEP_IDS = ['move', 'jumpFlyingFish', 'rideZone', 'balance'];
+
+const OBSTACLE_TUTORIAL_STEP = Object.freeze({
+  FLYING_FISH: 'jumpFlyingFish',
+  JELLYFISH: 'diveJellyfish',
+  SHARK: 'moveShark',
+  WHALE: 'moveWhale',
+  OCTOPUS: 'jumpOctopus',
+  LIGHTNING: 'moveLightning',
+});
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super({ key: 'GameScene' }); }
 
   /** @param {GameSceneInit} data */
-  init(data) {
+  init(data = {}) {
     this.stageIndex = this._normalizeStageIndex(data.stageIndex);
+    this._forceTutorial = !!data.forceTutorial;
   }
 
   create() {
@@ -45,6 +117,10 @@ export default class GameScene extends Phaser.Scene {
     this._wasInDanger = false;
     this._wasGrounded = true;
     this._slowmoMs   = 0;
+    this._tutorialPaused = false;
+    this._tutorialCurrentStep = null;
+    this._tutorialPendingStep = null;
+    this._tutorialSessionSeen = new Set();
 
     this.storage         = new StorageManager();
     this.scoreManager    = new ScoreManager();
@@ -77,6 +153,10 @@ export default class GameScene extends Phaser.Scene {
       onResume: () => this.resumeGame(),
       onMenu:   () => this._exitToMenu(),
     });
+    this.tutorialUi = mountTutorial({
+      onNext: () => this._resumeTutorial(),
+      onSkip: () => this._resumeTutorial(),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this._teardownThree, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this._teardownThree, this);
   }
@@ -89,6 +169,8 @@ export default class GameScene extends Phaser.Scene {
     this.hud = null;
     this.pauseUi?.destroy();
     this.pauseUi = null;
+    this.tutorialUi?.destroy();
+    this.tutorialUi = null;
     if (this._phaserCanvas) {
       this._phaserCanvas.style.display = '';
       this._phaserCanvas = null;
@@ -128,7 +210,7 @@ export default class GameScene extends Phaser.Scene {
     this.scoreManager.update(dt, this.player);
     this._resolveScoring();
     this._handleSpray();
-    this._updateTutorial();
+    this._updateTutorialTriggers();
 
     if (this.player.wiped) { this._gameOver(null, 'wipeout'); return; }
 
@@ -182,10 +264,9 @@ export default class GameScene extends Phaser.Scene {
       danger:       this.player.inDanger,
       bigWave:      this.bigWaveManager.hud(),
       barrel:       this.barrelManager.hud(),
-      tutorialText: this._tutorialActive
-        ? (TUTORIAL_STEPS.find((s) => this.stageTimer < s.until)?.text ?? null)
-        : null,
+      tutorialText: null,
     });
+    this._showPendingTutorial();
   }
 
   // 피격: 하트 차감·콤보 리셋·연출. 사망(하트 0)이면 true 반환 → 게임오버.
@@ -316,14 +397,55 @@ export default class GameScene extends Phaser.Scene {
   // ─── 인게임 튜토리얼 (1스테이지 첫 플레이) ──────────────────────────────────
   // 안내 문구는 DOM HUD가 tutorialText로 표시한다 — 여기선 활성 상태만 관리한다.
   _setupTutorial() {
-    this._tutorialActive = this.stageIndex === 0 && !this.storage.tutorialCompleted;
+    this._tutorialActive = true;
   }
 
-  _updateTutorial() {
+  _updateTutorialTriggers() {
     if (!this._tutorialActive) return;
-    // 마지막 스텝 시간을 지나면 튜토리얼 종료(완료 저장).
-    if (this.stageTimer >= TUTORIAL_STEPS[TUTORIAL_STEPS.length - 1].until) {
-      this._tutorialActive = false;
+    if (this.stageIndex === 0 && this.stageTimer >= 260) this._queueTutorial('move');
+    if (this.stageIndex === 0 && this.stageTimer >= 8_600) this._queueTutorial('rideZone');
+    if (this.stageIndex === 0 && Math.abs(this.player.tilt) >= 0.46) this._queueTutorial('balance');
+    if (this.bigWaveManager.hud().warn) this._queueTutorial('bigWave');
+    if (this.barrelManager.hud().warn) this._queueTutorial('barrel');
+    if (this.stageGimmickManager.hud().updraftActive) this._queueTutorial('updraft');
+  }
+
+  _onObstacleSignal(event) {
+    if (!this._tutorialActive) return;
+    if (event.isFake) {
+      this._queueTutorial('fakeSignal');
+      return;
+    }
+    this._queueTutorial(OBSTACLE_TUTORIAL_STEP[event.obstacleType]);
+  }
+
+  _queueTutorial(stepId) {
+    if (!stepId || !TUTORIAL_STEPS[stepId]) return;
+    if (this._tutorialPendingStep || this._tutorialPaused) return;
+    if (this._tutorialSessionSeen.has(stepId)) return;
+    if (!this._forceTutorial && this.storage.hasSeenTutorialStep(stepId)) return;
+    this._tutorialPendingStep = stepId;
+  }
+
+  _showPendingTutorial() {
+    if (!this._tutorialPendingStep || this._tutorialPaused) return;
+    const stepId = this._tutorialPendingStep;
+    this._tutorialPendingStep = null;
+    this._tutorialSessionSeen.add(stepId);
+    this.storage.markTutorialStepSeen(stepId);
+    this._tutorialPaused = true;
+    this._tutorialCurrentStep = stepId;
+    this._active = false;
+    this.tutorialUi?.show(TUTORIAL_STEPS[stepId]);
+  }
+
+  _resumeTutorial() {
+    if (!this._tutorialPaused) return;
+    this._tutorialPaused = false;
+    this._tutorialCurrentStep = null;
+    this.tutorialUi?.hide();
+    this._active = true;
+    if (CORE_TUTORIAL_STEP_IDS.every((id) => this.storage.hasSeenTutorialStep(id))) {
       this.storage.markTutorialComplete();
     }
   }
